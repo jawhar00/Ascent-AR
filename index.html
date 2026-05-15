@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ASCEND AR Scanner</title>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js"></script>
   <style>
     body { margin: 0; background: #000; }
@@ -16,7 +15,8 @@
     }
     #start-btn {
       padding: 16px 32px; background: #4CAF50; color: white;
-      border: none; border-radius: 8px; font-size: 18px; cursor: pointer; margin-top: 20px;
+      border: none; border-radius: 8px; font-size: 18px;
+      cursor: pointer; margin-top: 20px;
     }
     #status {
       position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
@@ -24,7 +24,7 @@
       border-radius: 8px; font-family: sans-serif; font-size: 14px;
       z-index: 9999; text-align: center; display: none;
     }
-    p { color: white; font-family: sans-serif; font-size: 16px; text-align: center; }
+    p { color: white; font-family: sans-serif; font-size: 16px; text-align: center; padding: 0 20px; }
   </style>
 </head>
 <body>
@@ -34,18 +34,21 @@
     <button id="start-btn" onclick="startScanner()">📷 Start Scanner</button>
   </div>
   <div id="container"></div>
-  <div id="status">📷 Point camera at ASCEND QR code</div>
+  <div id="status"></div>
 
   <script>
     const stops = ['parklet', 'ev-carport', 'refurbishment', 'mw-building', 'new-buildings'];
 
     async function startScanner() {
       document.getElementById('start-screen').style.display = 'none';
-      document.getElementById('status').style.display = 'block';
-      document.getElementById('status').innerText = 'Loading scanner...';
+      const status = document.getElementById('status');
+      status.style.display = 'block';
+      status.innerText = 'Loading...';
 
       try {
-        const mindar = new window.MINDAR.IMAGE.MindARThree({
+        const { MindARThree } = window.MINDAR.IMAGE;
+
+        const mindar = new MindARThree({
           container: document.getElementById('container'),
           imageTargetSrc: 'https://jawhar00.github.io/Ascent-AR/targets.mind',
           maxTrack: 1,
@@ -58,7 +61,7 @@
         stops.forEach((stopId, i) => {
           const anchor = mindar.addAnchor(i);
           anchor.onTargetFound = () => {
-            document.getElementById('status').innerHTML = `✅ ${stopId} detected — opening...`;
+            status.innerHTML = `✅ ${stopId} detected — opening...`;
             setTimeout(() => {
               window.location.href = `https://playcanv.as/p/pgtU46sY/?stop=${stopId}`;
             }, 1000);
@@ -66,10 +69,11 @@
         });
 
         await mindar.start();
-        document.getElementById('status').innerText = '📷 Point camera at ASCEND QR code';
+        status.innerText = '📷 Point camera at ASCEND QR code';
         renderer.setAnimationLoop(() => renderer.render(scene, camera));
+
       } catch(err) {
-        document.getElementById('status').innerText = 'Error: ' + err.message;
+        status.innerText = 'Error: ' + err.message;
         console.error(err);
       }
     }
