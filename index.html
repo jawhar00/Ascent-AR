@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ASCEND AR Scanner</title>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image.prod.js"></script>
+  <style>
+    body { margin: 0; background: #000; }
+    #container { width: 100vw; height: 100vh; position: relative; }
+    #status {
+      position: fixed; top: 20px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8); color: white;
+      padding: 12px 20px; border-radius: 8px;
+      font-family: sans-serif; font-size: 14px;
+      z-index: 9999; text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="container"></div>
+  <div id="status">📷 Point camera at ASCEND QR code</div>
+  <script>
+    const stops = [
+      'parklet',
+      'ev-carport',
+      'refurbishment',
+      'mw-building',
+      'new-buildings'
+    ];
+
+    const mindar = new window.MINDAR.IMAGE.MindARThree({
+      container: document.getElementById('container'),
+      imageTargetSrc: 'https://jawhar00.github.io/Ascent-AR/targets.mind',
+      maxTrack: 1,
+      uiLoading: 'yes',
+      uiScanning: 'yes'
+    });
+
+    const { renderer, scene, camera } = mindar;
+
+    stops.forEach((stopId, i) => {
+      const anchor = mindar.addAnchor(i);
+      anchor.onTargetFound = () => {
+        document.getElementById('status').innerHTML = `✅ Found: ${stopId} — redirecting...`;
+        setTimeout(() => {
+          window.location.href = `https://playcanv.as/p/pgtU46sY/?stop=${stopId}`;
+        }, 1000);
+      };
+    });
+
+    mindar.start().then(() => {
+      renderer.setAnimationLoop(() => renderer.render(scene, camera));
+    });
+  </script>
+</body>
+</html>
