@@ -6,15 +6,16 @@
 <meta name="theme-color" content="#000000">
 <title>ASCEND AR — Harthof</title>
 
-<!-- A-Frame + MindAR (image tracking) -->
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
 <style>
   html, body {
     margin: 0; padding: 0; overflow: hidden;
+    width: 100vw; height: 100vh; /* FORCES FULL SCREEN */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #000; color: white;
+    background: transparent; /* TRANSPARENT SO CAMERA SHOWS THROUGH */
+    color: white;
     -webkit-user-select: none; user-select: none;
     -webkit-touch-callout: none;
   }
@@ -119,7 +120,6 @@
 <div id="status">📷 Scan an ASCEND QR code</div>
 <div id="header"><b>ASCEND</b> · Harthof Munich</div>
 
-<!-- Visual scanning frame (hidden once target found) -->
 <div class="scan-frame" id="scan-frame">
   <div class="scan-corner tl"></div>
   <div class="scan-corner tr"></div>
@@ -129,7 +129,6 @@
 
 <div class="hint" id="hint">Hold phone steady · Good lighting helps</div>
 
-<!-- Info panel -->
 <div id="info-panel">
   <button id="close-info" aria-label="Close">✕</button>
   <h2 id="info-title">Stop</h2>
@@ -138,7 +137,6 @@
   <a id="more-link" href="#" target="_blank">Explore 3D Dashboard →</a>
 </div>
 
-<!-- ============================ AR SCENE ============================ -->
 <a-scene
   mindar-image="
     imageTargetSrc: https://jawhar00.github.io/Ascent-AR/targets.mind;
@@ -153,48 +151,35 @@
   renderer="colorManagement: true; physicallyCorrectLights: true; antialias: true; alpha: true"
   vr-mode-ui="enabled: false"
   device-orientation-permission-ui="enabled: false"
-  embedded
   loading-screen="enabled: false">
-
   <a-assets>
-    <!-- Add .glb models here once you have them, e.g.:
-         <a-asset-item id="pv-panel" src="models/pv-panel.glb"></a-asset-item> -->
-  </a-assets>
+    </a-assets>
 
   <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-  <!-- Scene lighting -->
   <a-light type="ambient" color="#FFFFFF" intensity="0.7"></a-light>
   <a-light type="directional" position="1 2 1" intensity="0.6" color="#FFFFFF"></a-light>
 
-  <!-- ============= STOP 0: PARKLET ============= -->
   <a-entity mindar-image-target="targetIndex: 0" id="target-parklet">
-    <!-- Label floating above QR -->
     <a-text value="Parklet & Citizen Space"
             align="center" position="0 0.55 0"
             color="#4CAF50" width="3"
             outline-color="#000" outline-width="0.02"></a-text>
 
-    <!-- QR plane indicator (faint, on the QR surface) -->
     <a-plane color="#4CAF50" opacity="0.15"
              height="1" width="1"
              rotation="-90 0 0"></a-plane>
 
-    <!-- 3D content rises behind the QR (away from camera) -->
     <a-entity position="0 0 -0.4">
-      <!-- Bench seat -->
       <a-box color="#8D6E63" width="1.2" height="0.05" depth="0.35"
              position="0 0.25 0" shadow></a-box>
-      <!-- Bench legs -->
       <a-box color="#5D4037" width="0.05" height="0.25" depth="0.35"
              position="-0.55 0.125 0"></a-box>
       <a-box color="#5D4037" width="0.05" height="0.25" depth="0.35"
              position="0.55 0.125 0"></a-box>
-      <!-- Bench backrest -->
       <a-box color="#8D6E63" width="1.2" height="0.3" depth="0.04"
              position="0 0.45 -0.15"></a-box>
 
-      <!-- Planters left & right -->
       <a-cylinder color="#3E2723" radius="0.15" height="0.3"
                   position="-0.85 0.15 0"></a-cylinder>
       <a-sphere color="#388E3C" radius="0.18"
@@ -204,7 +189,6 @@
       <a-sphere color="#388E3C" radius="0.18"
                 position="0.85 0.38 0" scale="1 0.7 1"></a-sphere>
 
-      <!-- People icons (simple stylized) -->
       <a-cylinder color="#FFA726" radius="0.06" height="0.3"
                   position="-0.3 0.4 0.1"></a-cylinder>
       <a-sphere color="#FFB74D" radius="0.07"
@@ -214,7 +198,6 @@
       <a-sphere color="#64B5F6" radius="0.07"
                 position="0.3 0.62 0.1"></a-sphere>
 
-      <!-- Floating info beacon -->
       <a-sphere id="parklet-beacon" color="#4CAF50" radius="0.06"
                 position="0 0.95 0"
                 animation="property: position; to: 0 1.05 0; dur: 1500;
@@ -229,7 +212,6 @@
     </a-entity>
   </a-entity>
 
-  <!-- ============= STOP 1: EV-CARPORT ============= -->
   <a-entity mindar-image-target="targetIndex: 1" id="target-ev-carport">
     <a-text value="EV-Carport + PV"
             align="center" position="0 0.55 0"
@@ -240,7 +222,6 @@
              height="1" width="1" rotation="-90 0 0"></a-plane>
 
     <a-entity position="0 0 -0.6">
-      <!-- 4 support pillars -->
       <a-box color="#90A4AE" width="0.05" height="0.7" depth="0.05"
              position="-0.55 0.35 -0.45"></a-box>
       <a-box color="#90A4AE" width="0.05" height="0.7" depth="0.05"
@@ -250,15 +231,12 @@
       <a-box color="#90A4AE" width="0.05" height="0.7" depth="0.05"
              position="0.55 0.35 0.45"></a-box>
 
-      <!-- PV panel roof — tilted toward sun -->
       <a-plane color="#0D47A1" width="1.3" height="1.0"
                position="0 0.72 0" rotation="-75 0 0"
                material="metalness: 0.7; roughness: 0.3"></a-plane>
-      <!-- PV cell grid overlay -->
       <a-plane color="#1976D2" width="1.28" height="0.98" opacity="0.4"
                position="0 0.722 0" rotation="-75 0 0"></a-plane>
 
-      <!-- 3 EV chargers in a row -->
       <a-box color="#FF6F00" width="0.1" height="0.25" depth="0.1"
              position="-0.35 0.125 0.35"></a-box>
       <a-box color="#FFC107" width="0.06" height="0.06" depth="0.07"
@@ -274,7 +252,6 @@
       <a-box color="#FFC107" width="0.06" height="0.06" depth="0.07"
              position="0.35 0.22 0.4"></a-box>
 
-      <!-- Animated energy flow particles (sun → roof → chargers) -->
       <a-sphere color="#FFEB3B" radius="0.03" position="0 0.7 -0.1"
                 animation="property: position; from: 0 0.7 -0.1;
                            to: 0 0.05 0.35; dur: 2500; loop: true;
@@ -288,7 +265,6 @@
                            to: 0 0.05 0.35; dur: 2500; loop: true; delay: 1600;
                            easing: easeInQuad"></a-sphere>
 
-      <!-- Beacon -->
       <a-sphere id="ev-beacon" color="#2196F3" radius="0.06"
                 position="0 1.0 0"
                 animation="property: position; to: 0 1.1 0; dur: 1500;
@@ -296,7 +272,6 @@
     </a-entity>
   </a-entity>
 
-  <!-- ============= STOP 2: REFURBISHMENT ============= -->
   <a-entity mindar-image-target="targetIndex: 2" id="target-refurbishment">
     <a-text value="Sanierung"
             align="center" position="0 0.55 0"
@@ -307,7 +282,6 @@
              height="1" width="1" rotation="-90 0 0"></a-plane>
 
     <a-entity position="0 0 -0.6">
-      <!-- Before / After split building -->
       <a-text value="VORHER" position="-0.3 1.1 0"
               align="center" color="#D32F2F" width="3"
               outline-color="#000" outline-width="0.02"></a-text>
@@ -315,10 +289,8 @@
               align="center" color="#4CAF50" width="3"
               outline-color="#000" outline-width="0.02"></a-text>
 
-      <!-- Old half (poor insulation, red gradient) -->
       <a-box color="#C62828" width="0.45" height="0.9" depth="0.4"
              position="-0.3 0.45 0" opacity="0.9"></a-box>
-      <!-- Heat-loss arrows pointing OUT from old building -->
       <a-cone color="#FF1744" position="-0.65 0.7 0"
               rotation="0 0 90" radius-bottom="0.04" radius-top="0" height="0.12"
               animation="property: position; from: -0.55 0.7 0; to: -0.85 0.7 0;
@@ -332,25 +304,20 @@
               animation__fade="property: components.material.material.opacity;
                                from: 1; to: 0; dur: 1500; delay: 400; loop: true"></a-cone>
 
-      <!-- New half (good insulation, green) -->
       <a-box color="#388E3C" width="0.45" height="0.9" depth="0.4"
              position="0.3 0.45 0" opacity="0.9"></a-box>
-      <!-- Insulation outer layer -->
       <a-box color="#A5D6A7" width="0.5" height="0.95" depth="0.45"
              position="0.3 0.45 0" opacity="0.3"></a-box>
-      <!-- New triple-glazed windows -->
       <a-plane color="#81D4FA" opacity="0.6" width="0.3" height="0.2"
                position="0.3 0.55 0.21"></a-plane>
       <a-plane color="#81D4FA" opacity="0.6" width="0.3" height="0.2"
                position="0.3 0.25 0.21"></a-plane>
 
-      <!-- Old building windows (single-pane, dark) -->
       <a-plane color="#37474F" opacity="0.7" width="0.3" height="0.2"
                position="-0.3 0.55 0.21"></a-plane>
       <a-plane color="#37474F" opacity="0.7" width="0.3" height="0.2"
                position="-0.3 0.25 0.21"></a-plane>
 
-      <!-- Beacon -->
       <a-sphere id="refurb-beacon" color="#FF9800" radius="0.06"
                 position="0 1.35 0"
                 animation="property: position; to: 0 1.45 0; dur: 1500;
@@ -358,7 +325,6 @@
     </a-entity>
   </a-entity>
 
-  <!-- ============= STOP 3: MW-BUILDING (PV + DISTRICT HEATING) ============= -->
   <a-entity mindar-image-target="targetIndex: 3" id="target-mw-building">
     <a-text value="PV + Fernwärme"
             align="center" position="0 0.55 0"
@@ -369,11 +335,9 @@
              height="1" width="1" rotation="-90 0 0"></a-plane>
 
     <a-entity position="0 0 -0.7">
-      <!-- Apartment building -->
       <a-box color="#CFD8DC" width="0.9" height="1.1" depth="0.55"
              position="0 0.55 0"></a-box>
 
-      <!-- Window grid (4x3) -->
       <a-plane color="#37474F" opacity="0.7" width="0.12" height="0.15"
                position="-0.3 0.85 0.28"></a-plane>
       <a-plane color="#37474F" opacity="0.7" width="0.12" height="0.15"
@@ -399,18 +363,15 @@
       <a-plane color="#37474F" opacity="0.7" width="0.12" height="0.15"
                position="0.3 0.25 0.28"></a-plane>
 
-      <!-- Rooftop PV array -->
       <a-plane color="#0D47A1" width="0.85" height="0.5"
                position="0 1.11 0" rotation="-90 0 0"
                material="metalness: 0.7; roughness: 0.3"></a-plane>
 
-      <!-- District heating pipe rising from ground into building -->
       <a-cylinder color="#FF6F00" radius="0.04" height="0.6"
                   position="-0.55 0.3 0.2"></a-cylinder>
       <a-cylinder color="#FF6F00" radius="0.04" height="0.3"
                   position="-0.45 0.6 0.2" rotation="0 0 -45"></a-cylinder>
 
-      <!-- Energy flow particles up the heating pipe -->
       <a-sphere color="#FFEB3B" radius="0.025" position="-0.55 0 0.2"
                 animation="property: position; from: -0.55 0 0.2;
                            to: -0.55 0.6 0.2; dur: 1500; loop: true;
@@ -424,7 +385,6 @@
                            to: -0.55 0.6 0.2; dur: 1500; delay: 1000; loop: true;
                            easing: linear"></a-sphere>
 
-      <!-- Beacon -->
       <a-sphere id="mw-beacon" color="#9C27B0" radius="0.06"
                 position="0 1.45 0"
                 animation="property: position; to: 0 1.55 0; dur: 1500;
@@ -432,7 +392,6 @@
     </a-entity>
   </a-entity>
 
-  <!-- ============= STOP 4: NEW BUILDINGS (KfW-40) ============= -->
   <a-entity mindar-image-target="targetIndex: 4" id="target-new-buildings">
     <a-text value="Neubau KfW-40"
             align="center" position="0 0.55 0"
@@ -443,13 +402,11 @@
              height="1" width="1" rotation="-90 0 0"></a-plane>
 
     <a-entity position="0 0 -0.6">
-      <!-- Modern building cluster (2 buildings, different heights) -->
       <a-box color="#FAFAFA" width="0.4" height="0.8" depth="0.4"
              position="-0.3 0.4 0"></a-box>
       <a-box color="#FAFAFA" width="0.4" height="1.05" depth="0.4"
              position="0.3 0.525 0"></a-box>
 
-      <!-- Triple-glazed windows (cyan tinted) -->
       <a-plane color="#00BCD4" opacity="0.7" width="0.3" height="0.35"
                position="-0.3 0.45 0.21"
                material="metalness: 0.3"></a-plane>
@@ -457,26 +414,21 @@
                position="0.3 0.55 0.21"
                material="metalness: 0.3"></a-plane>
 
-      <!-- Heat pump (gray unit at base) -->
       <a-box color="#37474F" width="0.18" height="0.12" depth="0.12"
              position="0 0.06 0.35"></a-box>
-      <!-- Heat pump fan ring -->
       <a-torus color="#546E7A" radius="0.05" radius-tubular="0.005"
                position="0 0.06 0.41" rotation="0 0 0"
                animation="property: rotation; to: 0 0 360; dur: 1500; loop: true; easing: linear"></a-torus>
 
-      <!-- PV roof on tallest -->
       <a-plane color="#0D47A1" width="0.38" height="0.38"
                position="0.3 1.06 0" rotation="-90 0 0"
                material="metalness: 0.7"></a-plane>
 
-      <!-- Energy efficiency label -->
       <a-plane color="#4CAF50" width="0.18" height="0.1"
                position="-0.3 0.55 0.215"></a-plane>
       <a-text value="A+" position="-0.3 0.55 0.22"
               align="center" color="white" width="3"></a-text>
 
-      <!-- Beacon -->
       <a-sphere id="new-beacon" color="#00BCD4" radius="0.06"
                 position="0 1.3 0"
                 animation="property: position; to: 0 1.4 0; dur: 1500;
