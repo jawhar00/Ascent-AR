@@ -4,12 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#000000">
-<title>ASCEND AR — Harthof</title>
-<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<title>ASCEND AR v2 — Harthof (True-Scale Occluding)</title>
+
 <style>
   html, body { margin: 0; padding: 0; overflow: hidden;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     background: #000; color: white;
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   #status {
@@ -22,466 +21,334 @@
   }
   #status.success { background: rgba(76,175,80,0.95); }
   #status.error { background: rgba(244,67,54,0.95); }
-  #header {
-    position: fixed; top: calc(env(safe-area-inset-top, 20px) + 60px); left: 20px;
-    background: rgba(0,0,0,0.6); padding: 6px 12px;
-    border-radius: 16px; font-size: 11px; z-index: 9999;
-    color: rgba(255,255,255,0.8);
+  #status.loading { background: rgba(255,152,0,0.95); }
+
+  #debug-toggle {
+    position: fixed; top: env(safe-area-inset-top, 20px); right: 20px;
+    background: rgba(0,0,0,0.7); color: white;
+    padding: 8px 12px; border-radius: 16px; font-size: 12px;
+    z-index: 9999; cursor: pointer; user-select: none;
+    backdrop-filter: blur(8px);
   }
-  #header b { color: #4CAF50; }
-  .hint {
-    position: fixed; bottom: calc(env(safe-area-inset-bottom, 20px) + 20px);
-    left: 50%; transform: translateX(-50%);
-    background: rgba(0,0,0,0.7); padding: 10px 18px; border-radius: 16px;
-    font-size: 12px; z-index: 9998; text-align: center;
-    max-width: calc(100vw - 40px); pointer-events: none;
+  #debug-toggle.active { background: rgba(255,152,0,0.9); }
+
+  #debug-log {
+    position: fixed; bottom: 10px; left: 10px; right: 10px;
+    max-height: 30vh; overflow-y: auto;
+    background: rgba(0,0,0,0.9); color: #0f0;
+    font-family: monospace; font-size: 10px;
+    padding: 8px; border-radius: 4px;
+    z-index: 9998; white-space: pre-wrap;
+    border: 1px solid #0f0; display: none;
   }
+  #debug-log.visible { display: block; }
+
   #info-panel {
     position: fixed; bottom: env(safe-area-inset-bottom, 0); left: 0; right: 0;
     background: linear-gradient(180deg, rgba(0,0,0,0.85), rgba(0,0,0,0.95));
     padding: 20px 20px calc(env(safe-area-inset-bottom, 20px) + 20px);
-    z-index: 9999; transform: translateY(100%);
+    z-index: 9997; transform: translateY(100%);
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
     max-height: 60vh; overflow-y: auto;
     border-top: 3px solid #4CAF50; backdrop-filter: blur(12px);
   }
   #info-panel.open { transform: translateY(0); }
-  #info-panel h2 { margin: 0 0 10px; font-size: 20px; }
-  #info-panel .desc { line-height: 1.5; opacity: 0.92; font-size: 14px; margin-bottom: 14px; }
+  #info-panel h2 { margin: 0 0 10px; font-size: 18px; }
+  #info-panel .desc { line-height: 1.5; opacity: 0.92; font-size: 13px; margin-bottom: 12px; }
   #info-panel .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  #info-panel .stat { background: rgba(255,255,255,0.08); padding: 10px;
-    border-radius: 8px; text-align: center; }
-  #info-panel .stat b { display: block; color: #4CAF50; font-size: 18px; margin-bottom: 2px; }
-  #info-panel .stat span { font-size: 11px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.5px; }
-  #close-info {
-    position: absolute; top: 12px; right: 12px;
-    width: 32px; height: 32px; border-radius: 50%;
-    background: rgba(255,255,255,0.15); color: white;
-    border: none; font-size: 16px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-  }
-  #more-link {
-    display: block; margin-top: 14px; padding: 12px;
-    background: #4CAF50; color: white; text-align: center;
-    text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;
-  }
+  #info-panel .stat { background: rgba(255,255,255,0.08); padding: 8px;
+    border-radius: 6px; text-align: center; }
+  #info-panel .stat b { display: block; color: #4CAF50; font-size: 16px; }
+  #info-panel .stat span { font-size: 10px; opacity: 0.7; text-transform: uppercase; }
+  #close-info { position: absolute; top: 10px; right: 10px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(255,255,255,0.15); color: white; border: none;
+    font-size: 14px; cursor: pointer; }
+
+  /* Three.js canvas is created by MindAR — make sure it fills screen */
+  #ar-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
 </style>
+
+<!-- Import maps for clean three.js modules -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/",
+    "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+  }
+}
+</script>
 </head>
 <body>
 
-<div id="status">📷 Scan an ASCEND QR code</div>
-<div id="header"><b>ASCEND</b> · Harthof Munich</div>
-<div class="hint" id="hint">Hold phone steady · Good lighting helps</div>
+<div id="status">📷 Loading AR…</div>
+<div id="debug-toggle" onclick="toggleDebug()">DEBUG</div>
+<div id="debug-log"></div>
 
 <div id="info-panel">
   <button id="close-info" aria-label="Close">✕</button>
   <h2 id="info-title">Stop</h2>
   <div class="desc" id="info-description"></div>
   <div class="stats" id="info-stats"></div>
-  <a id="more-link" href="#" target="_blank">Explore 3D Dashboard →</a>
 </div>
 
-<a-scene
-  mindar-image="
-    imageTargetSrc: https://jawhar00.github.io/Ascent-AR/targets.mind;
-    maxTrack: 1;
-    uiScanning: no;
-    uiLoading: no;
-    filterMinCF: 0.0001;
-    filterBeta: 0.001;
-    warmupTolerance: 3;
-    missTolerance: 5"
-  color-space="sRGB"
-  renderer="colorManagement: true; physicallyCorrectLights: true; antialias: true; alpha: true"
-  vr-mode-ui="enabled: false"
-  device-orientation-permission-ui="enabled: false"
-  embedded
-  loading-screen="enabled: false">
+<div id="ar-container"></div>
 
-  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MindARThree } from 'mindar-image-three';
 
-  <a-light type="ambient" color="#FFFFFF" intensity="0.9"></a-light>
-  <a-light type="directional" position="0 0 1" intensity="0.6"></a-light>
+// =================================================================
+// CONFIG
+// =================================================================
 
-  <!-- ============================================================
-       WALL-MOUNTED QR COORDINATE SYSTEM:
-         X = right (along wall)
-         Y = up (along wall)
-         Z = OUT from wall toward viewer  ← content goes here (positive Z)
-       All content offset positive Z so it pops OUT of the wall.
-       Buildings/objects are oriented in XY plane facing camera.
-       ============================================================ -->
+// Set to true during alignment phase to SEE the occluder buildings.
+// Set to false in production for invisible occlusion.
+let DEBUG_VISIBLE = false;
 
-  <!-- ============= STOP 0: PARKLET ============= -->
-  <a-entity mindar-image-target="targetIndex: 0" id="target-parklet">
-    <!-- Title centered above the QR -->
-    <a-text value="Parklet"
-            align="center" position="0 0.55 0.1"
-            color="#4CAF50" width="3"
-            outline-color="#000" outline-width="0.04"></a-text>
+// Path to the per-stop GLBs (produced by filter_glb.py)
+const STOPS_BASE_URL = './stops/';
 
-    <!-- Floating diorama IN FRONT of QR (positive Z, toward viewer) -->
-    <a-entity position="0 0 0.3">
-      <!-- Bench centered at QR midpoint -->
-      <a-box color="#8D6E63" width="0.6" height="0.04" depth="0.18"
-             position="0 -0.1 0"></a-box>
-      <a-box color="#5D4037" width="0.04" height="0.18" depth="0.18"
-             position="-0.27 -0.2 0"></a-box>
-      <a-box color="#5D4037" width="0.04" height="0.18" depth="0.18"
-             position="0.27 -0.2 0"></a-box>
-      <a-box color="#8D6E63" width="0.6" height="0.2" depth="0.03"
-             position="0 0.02 -0.08"></a-box>
-
-      <!-- Planters left/right -->
-      <a-cylinder color="#3E2723" radius="0.08" height="0.16"
-                  position="-0.4 -0.18 0"></a-cylinder>
-      <a-sphere color="#388E3C" radius="0.09"
-                position="-0.4 -0.05 0" scale="1 0.7 1"></a-sphere>
-      <a-cylinder color="#3E2723" radius="0.08" height="0.16"
-                  position="0.4 -0.18 0"></a-cylinder>
-      <a-sphere color="#388E3C" radius="0.09"
-                position="0.4 -0.05 0" scale="1 0.7 1"></a-sphere>
-
-      <!-- Two stylized citizen figures sitting -->
-      <a-cylinder color="#FFA726" radius="0.03" height="0.15"
-                  position="-0.15 0.0 0.05"></a-cylinder>
-      <a-sphere color="#FFB74D" radius="0.035"
-                position="-0.15 0.105 0.05"></a-sphere>
-      <a-cylinder color="#42A5F5" radius="0.03" height="0.15"
-                  position="0.15 0.0 0.05"></a-cylinder>
-      <a-sphere color="#64B5F6" radius="0.035"
-                position="0.15 0.105 0.05"></a-sphere>
-
-      <!-- Floating beacon -->
-      <a-sphere id="parklet-beacon" color="#4CAF50" radius="0.04"
-                position="0 0.35 0"
-                animation="property: position; to: 0 0.42 0; dur: 1500;
-                           dir: alternate; loop: true; easing: easeInOutSine">
-      </a-sphere>
-    </a-entity>
-  </a-entity>
-
-  <!-- ============= STOP 1: EV-CARPORT ============= -->
-  <a-entity mindar-image-target="targetIndex: 1" id="target-ev-carport">
-    <a-text value="EV-Carport + PV"
-            align="center" position="0 0.55 0.1"
-            color="#2196F3" width="3"
-            outline-color="#000" outline-width="0.04"></a-text>
-
-    <a-entity position="0 0 0.3">
-      <!-- 4 support pillars -->
-      <a-box color="#90A4AE" width="0.03" height="0.4" depth="0.03"
-             position="-0.27 -0.05 -0.13"></a-box>
-      <a-box color="#90A4AE" width="0.03" height="0.4" depth="0.03"
-             position="0.27 -0.05 -0.13"></a-box>
-      <a-box color="#90A4AE" width="0.03" height="0.4" depth="0.03"
-             position="-0.27 -0.05 0.13"></a-box>
-      <a-box color="#90A4AE" width="0.03" height="0.4" depth="0.03"
-             position="0.27 -0.05 0.13"></a-box>
-
-      <!-- PV panel roof — tilted -->
-      <a-plane color="#0D47A1" width="0.65" height="0.4"
-               position="0 0.18 0" rotation="-75 0 0"
-               material="metalness: 0.7; roughness: 0.3" side="double"></a-plane>
-      <a-plane color="#1976D2" width="0.63" height="0.38" opacity="0.5"
-               position="0 0.181 0" rotation="-75 0 0" side="double"></a-plane>
-
-      <!-- 3 EV chargers in front -->
-      <a-box color="#FF6F00" width="0.05" height="0.15" depth="0.05"
-             position="-0.18 -0.21 0.15"></a-box>
-      <a-box color="#FFC107" width="0.03" height="0.03" depth="0.04"
-             position="-0.18 -0.16 0.18"></a-box>
-      <a-box color="#FF6F00" width="0.05" height="0.15" depth="0.05"
-             position="0 -0.21 0.15"></a-box>
-      <a-box color="#FFC107" width="0.03" height="0.03" depth="0.04"
-             position="0 -0.16 0.18"></a-box>
-      <a-box color="#FF6F00" width="0.05" height="0.15" depth="0.05"
-             position="0.18 -0.21 0.15"></a-box>
-      <a-box color="#FFC107" width="0.03" height="0.03" depth="0.04"
-             position="0.18 -0.16 0.18"></a-box>
-
-      <!-- Animated energy particles (sun → roof → chargers) -->
-      <a-sphere color="#FFEB3B" radius="0.018" position="0 0.18 -0.05"
-                animation="property: position; from: 0 0.18 -0.05;
-                           to: 0 -0.21 0.15; dur: 2500; loop: true;
-                           easing: easeInQuad"></a-sphere>
-      <a-sphere color="#FFEB3B" radius="0.018" position="0 0.18 -0.05"
-                animation="property: position; from: 0 0.18 -0.05;
-                           to: 0 -0.21 0.15; dur: 2500; delay: 800; loop: true;
-                           easing: easeInQuad"></a-sphere>
-
-      <a-sphere id="ev-beacon" color="#2196F3" radius="0.04"
-                position="0 0.4 0"
-                animation="property: position; to: 0 0.47 0; dur: 1500;
-                           dir: alternate; loop: true"></a-sphere>
-    </a-entity>
-  </a-entity>
-
-  <!-- ============= STOP 2: REFURBISHMENT ============= -->
-  <a-entity mindar-image-target="targetIndex: 2" id="target-refurbishment">
-    <a-text value="Sanierung"
-            align="center" position="0 0.55 0.1"
-            color="#FF9800" width="3"
-            outline-color="#000" outline-width="0.04"></a-text>
-
-    <a-entity position="0 0 0.3">
-      <!-- VORHER label above old half -->
-      <a-text value="VORHER" position="-0.15 0.4 0"
-              align="center" color="#D32F2F" width="2.5"
-              outline-color="#000" outline-width="0.03"></a-text>
-      <!-- NACHHER label above new half -->
-      <a-text value="NACHHER" position="0.15 0.4 0"
-              align="center" color="#4CAF50" width="2.5"
-              outline-color="#000" outline-width="0.03"></a-text>
-
-      <!-- Old half (red, poor insulation) -->
-      <a-box color="#C62828" width="0.22" height="0.45" depth="0.2"
-             position="-0.15 0 0" opacity="0.9"></a-box>
-      <!-- Heat-loss arrows escaping from old -->
-      <a-cone color="#FF1744" position="-0.32 0.1 0"
-              rotation="0 0 90" radius-bottom="0.02" radius-top="0" height="0.06"
-              animation="property: position; from: -0.28 0.1 0; to: -0.42 0.1 0;
-                         dur: 1500; loop: true; easing: easeOutQuad"
-              animation__fade="property: components.material.material.opacity;
-                               from: 1; to: 0; dur: 1500; loop: true"></a-cone>
-      <a-cone color="#FF1744" position="-0.32 -0.05 0"
-              rotation="0 0 90" radius-bottom="0.02" radius-top="0" height="0.06"
-              animation="property: position; from: -0.28 -0.05 0; to: -0.42 -0.05 0;
-                         dur: 1500; delay: 500; loop: true; easing: easeOutQuad"
-              animation__fade="property: components.material.material.opacity;
-                               from: 1; to: 0; dur: 1500; delay: 500; loop: true"></a-cone>
-
-      <!-- New half (green, well insulated) -->
-      <a-box color="#388E3C" width="0.22" height="0.45" depth="0.2"
-             position="0.15 0 0" opacity="0.9"></a-box>
-      <a-box color="#A5D6A7" width="0.25" height="0.48" depth="0.23"
-             position="0.15 0 0" opacity="0.3"></a-box>
-
-      <a-sphere id="refurb-beacon" color="#FF9800" radius="0.04"
-                position="0 0.55 0"
-                animation="property: position; to: 0 0.62 0; dur: 1500;
-                           dir: alternate; loop: true"></a-sphere>
-    </a-entity>
-  </a-entity>
-
-  <!-- ============= STOP 3: MW-BUILDING (PV + Fernwärme) ============= -->
-  <a-entity mindar-image-target="targetIndex: 3" id="target-mw-building">
-    <a-text value="PV + Fernwärme"
-            align="center" position="0 0.55 0.1"
-            color="#9C27B0" width="3"
-            outline-color="#000" outline-width="0.04"></a-text>
-
-    <a-entity position="0 0 0.3">
-      <!-- Apartment building -->
-      <a-box color="#CFD8DC" width="0.45" height="0.55" depth="0.28"
-             position="0 0 0"></a-box>
-
-      <!-- Window grid 4x3 -->
-      <a-plane color="#37474F" opacity="0.8" width="0.07" height="0.08"
-               position="-0.15 0.18 0.141"></a-plane>
-      <a-plane color="#37474F" opacity="0.8" width="0.07" height="0.08"
-               position="-0.05 0.18 0.141"></a-plane>
-      <a-plane color="#37474F" opacity="0.8" width="0.07" height="0.08"
-               position="0.05 0.18 0.141"></a-plane>
-      <a-plane color="#37474F" opacity="0.8" width="0.07" height="0.08"
-               position="0.15 0.18 0.141"></a-plane>
-      <a-plane color="#37474F" opacity="0.8" width="0.07" height="0.08"
-               position="-0.15 0 0.141"></a-plane>
-      <a-plane color="#37474F" opacity="0.8" width="0.07" height="0.08"
-               position="-0.05 0 0.141"></a-plane>
-      <a-plane color="#37474F" opacity="0.8" width="0.07" height="0.08"
-               position="0.05 0 0.141"></a-plane>
-      <a-plane color="#37474F" opacity="0.8" width="0.07" height="0.08"
-               position="0.15 0 0.141"></a-plane>
-      <a-plane color="#37474F" opacity="0.8" width="0.07" height="0.08"
-               position="-0.15 -0.18 0.141"></a-plane>
-      <a-plane color="#37474F" opacity="0.8" width="0.07" height="0.08"
-               position="-0.05 -0.18 0.141"></a-plane>
-      <a-plane color="#37474F" opacity="0.8" width="0.07" height="0.08"
-               position="0.05 -0.18 0.141"></a-plane>
-      <a-plane color="#37474F" opacity="0.8" width="0.07" height="0.08"
-               position="0.15 -0.18 0.141"></a-plane>
-
-      <!-- PV roof on top -->
-      <a-plane color="#0D47A1" width="0.42" height="0.25"
-               position="0 0.276 0" rotation="-90 0 0"
-               material="metalness: 0.7" side="double"></a-plane>
-
-      <!-- Fernwärme pipe from below into the building (orange) -->
-      <a-cylinder color="#FF6F00" radius="0.02" height="0.3"
-                  position="-0.28 -0.15 0.1"></a-cylinder>
-
-      <!-- Energy particles up the pipe -->
-      <a-sphere color="#FFEB3B" radius="0.013" position="-0.28 -0.3 0.1"
-                animation="property: position; from: -0.28 -0.3 0.1;
-                           to: -0.28 0 0.1; dur: 1500; loop: true;
-                           easing: linear"></a-sphere>
-      <a-sphere color="#FFEB3B" radius="0.013" position="-0.28 -0.3 0.1"
-                animation="property: position; from: -0.28 -0.3 0.1;
-                           to: -0.28 0 0.1; dur: 1500; delay: 500; loop: true;
-                           easing: linear"></a-sphere>
-
-      <a-sphere id="mw-beacon" color="#9C27B0" radius="0.04"
-                position="0 0.5 0"
-                animation="property: position; to: 0 0.57 0; dur: 1500;
-                           dir: alternate; loop: true"></a-sphere>
-    </a-entity>
-  </a-entity>
-
-  <!-- ============= STOP 4: NEW BUILDINGS (KfW-40) ============= -->
-  <a-entity mindar-image-target="targetIndex: 4" id="target-new-buildings">
-    <a-text value="Neubau KfW-40"
-            align="center" position="0 0.55 0.1"
-            color="#00BCD4" width="3"
-            outline-color="#000" outline-width="0.04"></a-text>
-
-    <a-entity position="0 0 0.3">
-      <!-- Two modern buildings, different heights -->
-      <a-box color="#FAFAFA" width="0.2" height="0.4" depth="0.2"
-             position="-0.15 -0.05 0"></a-box>
-      <a-box color="#FAFAFA" width="0.2" height="0.52" depth="0.2"
-             position="0.15 0.01 0"></a-box>
-
-      <!-- Triple-glazed cyan windows -->
-      <a-plane color="#00BCD4" opacity="0.7" width="0.15" height="0.18"
-               position="-0.15 0 0.101"
-               material="metalness: 0.3"></a-plane>
-      <a-plane color="#00BCD4" opacity="0.7" width="0.15" height="0.25"
-               position="0.15 0.05 0.101"
-               material="metalness: 0.3"></a-plane>
-
-      <!-- Heat pump unit -->
-      <a-box color="#37474F" width="0.09" height="0.06" depth="0.06"
-             position="0 -0.22 0.18"></a-box>
-      <a-torus color="#546E7A" radius="0.025" radius-tubular="0.003"
-               position="0 -0.22 0.215" rotation="0 0 0"
-               animation="property: rotation; to: 0 0 360; dur: 1500;
-                          loop: true; easing: linear"></a-torus>
-
-      <!-- PV roof -->
-      <a-plane color="#0D47A1" width="0.19" height="0.19"
-               position="0.15 0.275 0" rotation="-90 0 0"
-               material="metalness: 0.7" side="double"></a-plane>
-
-      <!-- A+ energy label -->
-      <a-plane color="#4CAF50" width="0.09" height="0.05"
-               position="-0.15 0.08 0.105"></a-plane>
-      <a-text value="A+" position="-0.15 0.08 0.11"
-              align="center" color="white" width="2"></a-text>
-
-      <a-sphere id="new-beacon" color="#00BCD4" radius="0.04"
-                position="0 0.48 0"
-                animation="property: position; to: 0 0.55 0; dur: 1500;
-                           dir: alternate; loop: true"></a-sphere>
-    </a-entity>
-  </a-entity>
-
-</a-scene>
-
-<script>
+// Stop content data (same as v1, kept for info panel)
 const STOPS = [
-  {
-    id: 'parklet',
-    label: 'Parklet & Bürgerengagement',
-    color: '#4CAF50',
-    description: 'Citizen-led neighborhood space: Quartiersrat meetings, energy community activities, and the summer parklet.',
-    stats: { 'Sitzplätze': '12', 'Events/Jahr': '8', 'Mitglieder': '47', 'CO₂ gespart': '2.1 t' }
-  },
-  {
-    id: 'ev-carport',
-    label: 'EV-Charger / PV-Carport',
-    color: '#2196F3',
-    description: 'Three EV chargers and three Stattauto sharing vehicles. PV-panel roof planned to provide on-site clean energy.',
-    stats: { 'Ladesäulen': '3', 'Carsharing': '3', 'PV': '15 kWp', 'CO₂ gespart': '4.2 t' }
-  },
-  {
-    id: 'refurbishment',
-    label: 'Gebäudesanierung',
-    color: '#FF9800',
-    description: 'Energy-efficient refurbishment: improved insulation, triple-glazed windows, modernized heating. 64% energy reduction.',
-    stats: { 'Einsparung': '64%', 'CO₂-Red.': '45%', 'Vorher': '180 kWh', 'Nachher': '65 kWh' }
-  },
-  {
-    id: 'mw-building',
-    label: 'PV + Fernwärme',
-    color: '#9C27B0',
-    description: 'Munich-Wohnen building: 85 kWp rooftop PV connected to district heating network.',
-    stats: { 'PV': '85 kWp', 'Haushalte': '42', 'Fernwärme': '240 kW', 'PV-Anteil': '30%' }
-  },
-  {
-    id: 'new-buildings',
-    label: 'Neubau KfW-40',
-    color: '#00BCD4',
-    description: 'KfW-40 standard: heat pumps, triple-glazed windows, integrated PV systems. Below 40 kWh/m²·year.',
-    stats: { 'Standard': 'KfW-40', 'Wohnungen': '28', 'WP-COP': '4.5', 'Heizbedarf': '<40 kWh' }
-  }
+  { id: 'parklet', label: 'Parklet & Bürgerengagement', color: 0x4CAF50,
+    description: 'Citizen-led neighborhood space: Quartiersrat meetings, energy community activities.',
+    stats: { 'Sitzplätze': '12', 'Events/Jahr': '8', 'Mitglieder': '47', 'CO₂ gespart': '2.1 t' } },
+  { id: 'ev_carport', label: 'EV-Charger / PV-Carport', color: 0x2196F3,
+    description: 'Three EV chargers and three Stattauto sharing vehicles. PV-panel roof planned.',
+    stats: { 'Ladesäulen': '3', 'Carsharing': '3', 'PV': '15 kWp', 'CO₂': '4.2 t' } },
+  { id: 'refurbishment', label: 'Gebäudesanierung', color: 0xFF9800,
+    description: 'Energy-efficient refurbishment: insulation, triple-glazed windows. 64% reduction.',
+    stats: { 'Einsparung': '64%', 'CO₂-Red.': '45%', 'Vorher': '180', 'Nachher': '65' } },
+  { id: 'mw_building', label: 'PV + Fernwärme', color: 0x9C27B0,
+    description: '85 kWp rooftop PV connected to district heating network.',
+    stats: { 'PV': '85 kWp', 'Haushalte': '42', 'Fernwärme': '240 kW', 'Anteil': '30%' } },
+  { id: 'new_buildings', label: 'Neubau KfW-40', color: 0x00BCD4,
+    description: 'KfW-40: heat pumps, triple-glazed windows, integrated PV.',
+    stats: { 'Standard': 'KfW-40', 'Wohnungen': '28', 'WP-COP': '4.5', 'Heizbedarf': '<40' } },
 ];
 
-const DASHBOARD_URL = 'https://playcanv.as/p/pgtU46sY/';
-const $status = document.getElementById('status');
-const $hint = document.getElementById('hint');
-const $panel = document.getElementById('info-panel');
-const $moreLink = document.getElementById('more-link');
-let activeStop = null;
-let timers = {};
+// =================================================================
+// DEBUG LOGGING
+// =================================================================
+const $log = document.getElementById('debug-log');
+const $toggle = document.getElementById('debug-toggle');
 
-function showStopInfo(stop) {
-  document.getElementById('info-title').textContent = stop.label;
-  document.getElementById('info-title').style.color = stop.color;
-  document.getElementById('info-description').textContent = stop.description;
-  const statsHtml = Object.entries(stop.stats)
-    .map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`).join('');
-  document.getElementById('info-stats').innerHTML = statsHtml;
-  $panel.style.borderTopColor = stop.color;
-  $moreLink.href = `${DASHBOARD_URL}?stop=${stop.id}`;
-  $moreLink.style.background = stop.color;
-  $panel.classList.add('open');
-  $hint.style.display = 'none';
+function log(msg) {
+  const t = new Date().toTimeString().slice(0, 8);
+  $log.innerHTML = `[${t}] ${msg}\n` + $log.innerHTML;
+  console.log(`[ASCEND] ${msg}`);
 }
 
-function hideInfo() {
-  $panel.classList.remove('open');
-  $hint.style.display = 'block';
-}
-document.getElementById('close-info').addEventListener('click', hideInfo);
+window.toggleDebug = () => {
+  $log.classList.toggle('visible');
+  $toggle.classList.toggle('active');
+};
 
-window.addEventListener('DOMContentLoaded', () => {
-  STOPS.forEach((stop) => {
-    const target = document.querySelector(`#target-${stop.id}`);
-    if (!target) return;
-    target.addEventListener('targetFound', () => {
-      activeStop = stop;
-      $status.className = 'success';
-      $status.innerHTML = `✓ ${stop.label}`;
-      clearTimeout(timers[stop.id]);
-      timers[stop.id] = setTimeout(() => showStopInfo(stop), 1000);
-    });
-    target.addEventListener('targetLost', () => {
-      clearTimeout(timers[stop.id]);
-      if (activeStop && activeStop.id === stop.id) {
-        activeStop = null;
-        $status.className = '';
-        $status.innerHTML = '📷 Scan an ASCEND QR code';
-      }
-    });
+log('v2 starting');
+
+// =================================================================
+// OCCLUDER MATERIAL
+// =================================================================
+// This is THE technique: depth-only rendering.
+// The material writes to the depth buffer but not to the color buffer.
+// Real-world camera passthrough shows through where these meshes are,
+// but virtual content BEHIND them gets z-clipped (occluded).
+const occluderMaterial = new THREE.MeshBasicMaterial({
+  colorWrite: false,
+  depthWrite: true,
+  side: THREE.DoubleSide,
+});
+
+// Debug material — used when DEBUG_VISIBLE is true, makes occluders visible
+// with a semi-transparent color so we can verify alignment with real buildings.
+function makeDebugMaterial(color) {
+  return new THREE.MeshStandardMaterial({
+    color: color,
+    transparent: true,
+    opacity: 0.45,
+    side: THREE.DoubleSide,
+    wireframe: false,
   });
+}
 
-  ['parklet', 'ev-carport', 'refurb', 'mw', 'new'].forEach((prefix, i) => {
-    const el = document.getElementById(`${prefix}-beacon`);
-    if (el) {
-      el.setAttribute('class', 'clickable');
-      el.addEventListener('click', () => showStopInfo(STOPS[i]));
+function applyOccluderMaterial(scene, color) {
+  scene.traverse(child => {
+    if (child.isMesh) {
+      child.material = DEBUG_VISIBLE
+        ? makeDebugMaterial(color)
+        : occluderMaterial;
+      child.renderOrder = -10; // draw occluders BEFORE animations
     }
   });
+}
+
+// =================================================================
+// MAIN AR SETUP
+// =================================================================
+const $status = document.getElementById('status');
+const $panel = document.getElementById('info-panel');
+
+let mindarThree = null;
+const loader = new GLTFLoader();
+const stopRoots = []; // root group per stop
+const stopMeshes = {}; // loaded mesh cache by stop id
+
+async function init() {
+  log('Initializing MindAR + Three.js...');
+  $status.className = 'loading';
+  $status.innerHTML = '⏳ Loading AR…';
+
+  try {
+    mindarThree = new MindARThree({
+      container: document.querySelector('#ar-container'),
+      imageTargetSrc: 'https://jawhar00.github.io/Ascent-AR/targets.mind',
+      maxTrack: 1,
+      uiScanning: 'no',
+      uiLoading: 'no',
+      filterMinCF: 0.0001,
+      filterBeta: 0.001,
+    });
+
+    const { renderer, scene, camera } = mindarThree;
+    log('MindAR core created');
+
+    // Crucial for occluder technique: enable depth testing globally
+    renderer.sortObjects = true;
+    renderer.setPixelRatio(window.devicePixelRatio);
+
+    // Lighting (only affects DEBUG materials; doesn't affect occluder)
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    dirLight.position.set(1, 2, 1);
+    scene.add(dirLight);
+
+    // Create one anchor per stop, attach root group, register handlers
+    for (let i = 0; i < STOPS.length; i++) {
+      const stop = STOPS[i];
+      const anchor = mindarThree.addAnchor(i);
+      const root = new THREE.Group();
+      root.name = `stop-${stop.id}`;
+      anchor.group.add(root);
+      stopRoots.push(root);
+
+      // Add a small floating beacon at QR origin so we know detection fires
+      // even before the GLB loads
+      const beaconGeo = new THREE.SphereGeometry(0.04, 16, 16);
+      const beaconMat = new THREE.MeshBasicMaterial({ color: stop.color });
+      const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+      beacon.position.set(0, 0.5, 0.3); // 50cm up, 30cm out from QR
+      beacon.renderOrder = 10; // draw AFTER occluders
+      root.add(beacon);
+      // Animate beacon
+      beacon.userData.baseY = 0.5;
+
+      anchor.onTargetFound = () => onTargetFound(stop, root);
+      anchor.onTargetLost = () => onTargetLost(stop);
+
+      // Try to load this stop's GLB now (async)
+      loadStopMesh(stop, root).catch(err => {
+        log(`✗ Failed to load ${stop.id}.glb: ${err.message}`);
+      });
+    }
+
+    await mindarThree.start();
+    log('✓ AR session started');
+    $status.className = '';
+    $status.innerHTML = '📷 Scan an ASCEND QR code';
+
+    // Render loop
+    let frame = 0;
+    renderer.setAnimationLoop(() => {
+      frame++;
+      // Animate beacons
+      stopRoots.forEach(root => {
+        const beacon = root.children.find(c => c.geometry?.type === 'SphereGeometry');
+        if (beacon) {
+          beacon.position.y = beacon.userData.baseY + Math.sin(frame * 0.05) * 0.05;
+        }
+      });
+      renderer.render(scene, camera);
+    });
+
+  } catch (err) {
+    log(`✗ Init error: ${err.message}`);
+    $status.className = 'error';
+    $status.innerHTML = `⚠️ ${err.message}`;
+  }
+}
+
+async function loadStopMesh(stop, root) {
+  log(`Loading ${stop.id}.glb…`);
+  const url = `${STOPS_BASE_URL}${stop.id}.glb`;
+  try {
+    const gltf = await loader.loadAsync(url);
+    applyOccluderMaterial(gltf.scene, stop.color);
+    root.add(gltf.scene);
+    stopMeshes[stop.id] = gltf.scene;
+    const triCount = countTriangles(gltf.scene);
+    log(`✓ ${stop.id}: ${triCount} triangles loaded`);
+  } catch (err) {
+    log(`⚠ ${stop.id}.glb not available (this is OK during Week 1)`);
+    // Don't throw — beacon-only mode still works
+  }
+}
+
+function countTriangles(obj) {
+  let n = 0;
+  obj.traverse(c => {
+    if (c.isMesh && c.geometry.index) n += c.geometry.index.count / 3;
+    else if (c.isMesh) n += c.geometry.attributes.position.count / 3;
+  });
+  return Math.round(n);
+}
+
+function onTargetFound(stop, root) {
+  log(`✓ ${stop.id} detected`);
+  $status.className = 'success';
+  $status.innerHTML = `✓ ${stop.label}`;
+  // Show info panel after stable detection
+  clearTimeout(stop._timer);
+  stop._timer = setTimeout(() => showInfoPanel(stop), 1000);
+}
+
+function onTargetLost(stop) {
+  log(`× ${stop.id} lost`);
+  clearTimeout(stop._timer);
+  $status.className = '';
+  $status.innerHTML = '📷 Scan an ASCEND QR code';
+}
+
+function showInfoPanel(stop) {
+  document.getElementById('info-title').textContent = stop.label;
+  document.getElementById('info-title').style.color = '#' + stop.color.toString(16).padStart(6, '0');
+  document.getElementById('info-description').textContent = stop.description;
+  document.getElementById('info-stats').innerHTML = Object.entries(stop.stats)
+    .map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`)
+    .join('');
+  $panel.style.borderTopColor = '#' + stop.color.toString(16).padStart(6, '0');
+  $panel.classList.add('open');
+}
+
+document.getElementById('close-info').addEventListener('click', () => {
+  $panel.classList.remove('open');
 });
 
-const scene = document.querySelector('a-scene');
-scene.setAttribute('cursor', 'rayOrigin: mouse');
-scene.addEventListener('arError', (e) => {
-  $status.className = 'error';
-  $status.innerHTML = '⚠️ AR error — check camera permission';
-  console.error('MindAR error:', e);
+// Allow toggling DEBUG_VISIBLE via long-press on the debug button
+let pressTimer = null;
+$toggle.addEventListener('touchstart', (e) => {
+  pressTimer = setTimeout(() => {
+    DEBUG_VISIBLE = !DEBUG_VISIBLE;
+    log(`DEBUG_VISIBLE → ${DEBUG_VISIBLE}. Reload required.`);
+    alert(`DEBUG_VISIBLE: ${DEBUG_VISIBLE}\nReload to apply.`);
+  }, 800);
 });
+$toggle.addEventListener('touchend', () => clearTimeout(pressTimer));
+
+// Start
+init();
 </script>
 </body>
 </html>
