@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>ASCEND AR — Harthof</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background:#000; color:#fff; overflow:hidden; }
+
+  /* ── Start screen ── */
+  #start-screen {
+    position:fixed; inset:0; z-index:100;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:linear-gradient(135deg,#0A2440 0%,#1B7D8C 100%);
+    padding:24px; text-align:center;
+  }
+  #start-screen h1 { font-size:28px; font-weight:700; margin-bottom:8px; }
+  #start-screen p { font-size:14px; opacity:.7; margin-bottom:32px; max-width:320px; line-height:1.5; }
+  #start-btn {
+    padding:16px 48px; border:none; border-radius:12px;
+    background:#4EBFB8; color:#0A2440; font-size:16px; font-weight:700;
+    cursor:pointer; transition:transform .1s;
+  }
+  #start-btn:active { transform:scale(.95); }
+  #start-btn:disabled { opacity:.4; cursor:wait; }
+  #start-status { margin-top:16px; font-size:12px; opacity:.6; min-height:20px; }
+
+  /* ── AR HUD overlay ── */
+  #ar-hud {
+    position:fixed; top:0; left:0; right:0; z-index:10;
+    padding:12px 16px; pointer-events:none;
+  }
+  #gps-badge {
+    display:inline-flex; align-items:center; gap:6px;
+    background:rgba(0,0,0,.6); backdrop-filter:blur(8px);
+    padding:6px 12px; border-radius:8px; font-size:11px;
+    font-family:monospace;
+  }
+  #gps-dot { width:8px; height:8px; border-radius:50%; background:#4EBFB8; }
+  #gps-dot.searching { background:#fbbc04; animation:pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* ── Stop cards ── */
+  #stop-cards {
+    position:fixed; bottom:20px; left:0; right:0; z-index:10;
+    display:flex; gap:8px; padding:0 12px;
+    overflow-x:auto; -webkit-overflow-scrolling:touch;
+    pointer-events:auto;
+  }
+  #stop-cards::-webkit-scrollbar { display:none; }
+  .stop-card {
+    flex-shrink:0; min-width:140px; padding:10px 14px;
+    background:rgba(10,12,18,.85); backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,.1); border-radius:12px;
+    cursor:pointer; transition:border-color .2s;
+  }
+  .stop-card.nearest { border-color:#4EBFB8; }
+  .stop-card-icon { font-size:20px; }
+  .stop-card-label { font-size:12px; font-weight:600; margin-top:4px; }
+  .stop-card-dist { font-size:10px; opacity:.5; margin-top:2px; font-family:monospace; }
+  .stop-card-arrow { font-size:14px; margin-top:4px; display:inline-block; transition:transform .3s; }
+
+  /* ── Error overlay ── */
+  #error-overlay {
+    position:fixed; inset:0; z-index:200;
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.9); padding:24px; text-align:center;
+  }
+  #error-overlay.visible { display:flex; }
+  #error-overlay h2 { color:#ea4335; margin-bottom:12px; }
+  #error-overlay p { font-size:14px; opacity:.7; max-width:300px; line-height:1.5; }
+</style>
+</head>
+<body>
+
+<!-- ── Start Screen ── -->
+<div id="start-screen">
+  <h1>🏙 ASCEND AR</h1>
+  <p>Erkunde die Energiewende-Maßnahmen in Harthof. Richte dein Handy auf die Umgebung — die 3D-Modelle erscheinen an ihren realen Standorten.</p>
+  <button id="start-btn">AR starten</button>
+  <div id="start-status"></div>
+</div>
+
+<!-- ── AR HUD (dom-overlay) ── -->
+<div id="ar-hud">
+  <div id="gps-badge">
+    <div id="gps-dot" class="searching"></div>
+    <span id="gps-text">GPS wird gesucht…</span>
+  </div>
+</div>
+
+<!-- ── Stop Cards ── -->
+<div id="stop-cards"></div>
+
+<!-- ── Error Overlay ── -->
+<div id="error-overlay">
+  <h2>⚠️</h2>
+  <p id="error-msg"></p>
+</div>
+
+<!-- ── Three.js & WebXR ── -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ═══════════════════════════════════════════
+//  ASCEND STOP DEFINITIONS
+// ═══════════════════════════════════════════
+const STOPS = [
+  {
+    key: 'parklet', label: 'Parklet', icon: '🌿',
+    lat: 48.20323, lon: 11.56816, alt: 0,
+    glb: 'models/parklet.glb',
+    info: 'Bürger-Parklet mit Kräutergarten'
+  },
+  {
+    key: 'ev_carport', label: 'EV-Carport', icon: '🔌',
+    lat: 48.20383, lon: 11.56543, alt: 0,
+    glb: 'models/ev_carport.glb',
+    info: 'Solarcarport mit E-Ladesäulen'
+  },
+  {
+    key: 'refurbishment', label: 'Sanierung', icon: '🏗',
+    lat: 48.20478, lon: 11.56758, alt: 0,
+    glb: 'models/refurbishment.glb',
+    info: 'Energetische Gebäudesanierung'
+  },
+  {
+    key: 'mw_building', label: 'Mehrfamilienhaus', icon: '🏢',
+    lat: 48.20372, lon: 11.57315, alt: 0,
+    glb: 'models/mw_building.glb',
+    info: 'Neubau mit Mieterstrom'
+  },
+  {
+    key: 'new_buildings', label: 'Neubau KfW-40', icon: '🏠',
+    lat: 48.20313, lon: 11.57122, alt: 0,
+    glb: 'models/new_buildings.glb',
+    info: 'Plusenergie-Quartier'
+  }
+];
+
+// ═══════════════════════════════════════════
+//  GEO UTILITIES
+// ═══════════════════════════════════════════
+const DEG2RAD = Math.PI / 180;
+const EARTH_R = 6378137;
+
+// Compute (east, north) offset in meters from ref to target
+function gpsOffset(refLat, refLon, tgtLat, tgtLon) {
+  const midLat = (refLat + tgtLat) / 2 * DEG2RAD;
+  const dLat = (tgtLat - refLat) * DEG2RAD;
+  const dLon = (tgtLon - refLon) * DEG2RAD;
+  return {
+    east:  dLon * EARTH_R * Math.cos(midLat),
+    north: dLat * EARTH_R
+  };
+}
+
+// Haversine distance (meters)
+function gpsDist(lat1, lon1, lat2, lon2) {
+  const dLat = (lat2 - lat1) * DEG2RAD;
+  const dLon = (lon2 - lon1) * DEG2RAD;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*DEG2RAD)*Math.cos(lat2*DEG2RAD)*Math.sin(dLon/2)**2;
+  return EARTH_R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// Bearing from ref to target (degrees, 0=North clockwise)
+function gpsBearing(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2 - lon1) * DEG2RAD;
+  const y = Math.sin(dLon) * Math.cos(lat2 * DEG2RAD);
+  const x = Math.cos(lat1*DEG2RAD)*Math.sin(lat2*DEG2RAD) -
+            Math.sin(lat1*DEG2RAD)*Math.cos(lat2*DEG2RAD)*Math.cos(dLon);
+  return (Math.atan2(y, x) / DEG2RAD + 360) % 360;
+}
+
+// ═══════════════════════════════════════════
+//  APP STATE
+// ═══════════════════════════════════════════
+let renderer, scene, camera;
+let xrSession = null;
+let hitTestSource = null;
+let reticle;
+let contentGroup;            // rotated to align with compass north
+let compassHeading = null;   // degrees from north
+let userLat = null, userLon = null, gpsAccuracy = null;
+let gpsWatchId = null;
+let stopMeshes = {};         // key → THREE.Group
+const loader = new GLTFLoader();
+let gpsOriginSet = false;
+let originLat, originLon;    // GPS at session start
+
+// ═══════════════════════════════════════════
+//  INIT THREE.JS
+// ═══════════════════════════════════════════
+function initScene() {
+  scene = new THREE.Scene();
+
+  // Camera is controlled by WebXR
+  camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.01, 1000);
+
+  renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.xr.enabled = true;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  document.body.appendChild(renderer.domElement);
+
+  // Lighting
+  const hemi = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1.2);
+  scene.add(hemi);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+  dir.position.set(5, 10, 7.5);
+  dir.castShadow = true;
+  scene.add(dir);
+
+  // Content group — will be rotated to align with compass north
+  contentGroup = new THREE.Group();
+  scene.add(contentGroup);
+
+  // Hit-test reticle (ring on detected surfaces)
+  const ringGeo = new THREE.RingGeometry(0.08, 0.11, 32).rotateX(-Math.PI/2);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0x4EBFB8, side: THREE.DoubleSide });
+  reticle = new THREE.Mesh(ringGeo, ringMat);
+  reticle.visible = false;
+  reticle.matrixAutoUpdate = false;
+  scene.add(reticle);
+}
+
+// ═══════════════════════════════════════════
+//  GPS TRACKING
+// ═══════════════════════════════════════════
+function startGPS() {
+  if (!navigator.geolocation) {
+    showError('Geolocation wird von diesem Browser nicht unterstützt.');
+    return;
+  }
+
+  gpsWatchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      userLat = pos.coords.latitude;
+      userLon = pos.coords.longitude;
+      gpsAccuracy = pos.coords.accuracy;
+
+      // Set origin on first fix
+      if (!gpsOriginSet) {
+        originLat = userLat;
+        originLon = userLon;
+        gpsOriginSet = true;
+        placeStops();
+      }
+
+      updateGPSBadge();
+      updateStopCards();
+    },
+    (err) => {
+      console.warn('GPS error:', err);
+      updateGPSBadge('GPS Fehler');
+    },
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+  );
+}
+
+function updateGPSBadge(override) {
+  const dot = document.getElementById('gps-dot');
+  const txt = document.getElementById('gps-text');
+  if (override) { txt.textContent = override; return; }
+
+  if (userLat !== null) {
+    dot.classList.remove('searching');
+    txt.textContent = `${userLat.toFixed(5)}, ${userLon.toFixed(5)} · ±${gpsAccuracy.toFixed(0)}m`;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  COMPASS (for north alignment)
+// ═══════════════════════════════════════════
+function startCompass() {
+  // iOS requires permission request
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission().then(state => {
+      if (state === 'granted') window.addEventListener('deviceorientationabsolute', onOrientation, true);
+    });
+  } else {
+    // Android Chrome
+    window.addEventListener('deviceorientationabsolute', onOrientation, true);
+    // Fallback to non-absolute
+    window.addEventListener('deviceorientation', onOrientationFallback, true);
+  }
+}
+
+function onOrientation(e) {
+  if (e.absolute && e.alpha !== null) {
+    // alpha: degrees from North (Android absolute)
+    compassHeading = e.alpha;
+    // Remove fallback if absolute works
+    window.removeEventListener('deviceorientation', onOrientationFallback, true);
+  }
+}
+
+function onOrientationFallback(e) {
+  // webkitCompassHeading (iOS) or alpha (Android non-absolute)
+  if (e.webkitCompassHeading !== undefined) {
+    compassHeading = e.webkitCompassHeading;
+  } else if (e.alpha !== null) {
+    compassHeading = 360 - e.alpha; // approximate
+  }
+}
+
+// ═══════════════════════════════════════════
+//  PLACE STOPS in 3D space
+// ═══════════════════════════════════════════
+function placeStops() {
+  if (!gpsOriginSet) return;
+
+  STOPS.forEach(stop => {
+    const offset = gpsOffset(originLat, originLon, stop.lat, stop.lon);
+
+    // In WebXR: X=right, Y=up, Z=back (towards user)
+    // We want: East=+X, North=-Z
+    // The contentGroup will be rotated by compass to align with real north
+    const x = offset.east;
+    const y = stop.alt || 0;
+    const z = -offset.north;  // north = -Z in Three.js
+
+    // Create a marker sphere (visible immediately, GLB loads async)
+    const markerGroup = new THREE.Group();
+    markerGroup.position.set(x, y, z);
+
+    // Floating label beacon (visible from far away)
+    const beaconGeo = new THREE.SphereGeometry(1.5, 16, 16);
+    const beaconMat = new THREE.MeshStandardMaterial({
+      color: 0x4EBFB8, emissive: 0x4EBFB8, emissiveIntensity: 0.5,
+      transparent: true, opacity: 0.7
+    });
+    const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+    beacon.position.y = 15; // Float above ground
+    beacon.name = 'beacon';
+    markerGroup.add(beacon);
+
+    // Vertical line from ground to beacon
+    const lineGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 15, 0)
+    ]);
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x4EBFB8, transparent: true, opacity: 0.4 });
+    markerGroup.add(new THREE.Line(lineGeo, lineMat));
+
+    // Ground ring
+    const ringGeo = new THREE.RingGeometry(2, 3, 32).rotateX(-Math.PI/2);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x4EBFB8, side: THREE.DoubleSide, transparent: true, opacity: 0.3 });
+    markerGroup.add(new THREE.Mesh(ringGeo, ringMat));
+
+    contentGroup.add(markerGroup);
+    stopMeshes[stop.key] = markerGroup;
+
+    // Load GLB model asynchronously
+    loader.load(stop.glb,
+      (gltf) => {
+        const model = gltf.scene;
+        model.position.set(0, 0, 0);
+        // Scale down if model is in real-world meters (adjust as needed)
+        // model.scale.setScalar(0.01);
+        markerGroup.add(model);
+        console.log(`[ASCEND-AR] Loaded: ${stop.key}`);
+      },
+      undefined,
+      (err) => {
+        console.warn(`[ASCEND-AR] GLB not found: ${stop.glb} — beacon only`, err.message);
+      }
+    );
+  });
+}
+
+// ═══════════════════════════════════════════
+//  STOP CARDS (bottom UI)
+// ═══════════════════════════════════════════
+function buildStopCards() {
+  const container = document.getElementById('stop-cards');
+  STOPS.forEach(stop => {
+    const card = document.createElement('div');
+    card.className = 'stop-card';
+    card.id = `card-${stop.key}`;
+    card.innerHTML = `
+      <div class="stop-card-icon">${stop.icon}</div>
+      <div class="stop-card-label">${stop.label}</div>
+      <div class="stop-card-dist" id="dist-${stop.key}">—</div>
+      <div class="stop-card-arrow" id="arrow-${stop.key}">↑</div>
+    `;
+    card.onclick = () => focusStop(stop);
+    container.appendChild(card);
+  });
+}
+
+function updateStopCards() {
+  if (userLat === null) return;
+
+  let nearest = null, nearestDist = Infinity;
+
+  STOPS.forEach(stop => {
+    const dist = gpsDist(userLat, userLon, stop.lat, stop.lon);
+    const bearing = gpsBearing(userLat, userLon, stop.lat, stop.lon);
+
+    const distEl = document.getElementById(`dist-${stop.key}`);
+    const arrowEl = document.getElementById(`arrow-${stop.key}`);
+    const cardEl = document.getElementById(`card-${stop.key}`);
+
+    if (distEl) distEl.textContent = dist < 1000 ? `${dist.toFixed(0)}m` : `${(dist/1000).toFixed(1)}km`;
+
+    // Rotate arrow to point toward stop (relative to compass heading)
+    if (arrowEl && compassHeading !== null) {
+      const rel = (bearing - compassHeading + 360) % 360;
+      arrowEl.style.transform = `rotate(${rel}deg)`;
+    }
+
+    if (cardEl) cardEl.classList.toggle('nearest', false);
+
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearest = stop.key;
+    }
+  });
+
+  // Highlight nearest
+  if (nearest) {
+    const el = document.getElementById(`card-${nearest}`);
+    if (el) el.classList.add('nearest');
+  }
+}
+
+function focusStop(stop) {
+  // Pulse the beacon to draw attention
+  const group = stopMeshes[stop.key];
+  if (!group) return;
+  const beacon = group.getObjectByName('beacon');
+  if (beacon) {
+    beacon.material.emissiveIntensity = 2;
+    setTimeout(() => { beacon.material.emissiveIntensity = 0.5; }, 800);
+  }
+}
+
+// ═══════════════════════════════════════════
+//  WEBXR SESSION
+// ═══════════════════════════════════════════
+async function startAR() {
+  const statusEl = document.getElementById('start-status');
+  const btn = document.getElementById('start-btn');
+  btn.disabled = true;
+
+  // Check support
+  if (!navigator.xr) {
+    showError('WebXR wird nicht unterstützt. Verwende Chrome auf einem Android-Gerät.');
+    return;
+  }
+
+  const supported = await navigator.xr.isSessionSupported('immersive-ar');
+  if (!supported) {
+    showError('Immersive AR wird nicht unterstützt. Verwende Chrome auf einem Android-Gerät mit ARCore.');
+    return;
+  }
+
+  statusEl.textContent = 'AR-Session wird gestartet…';
+
+  try {
+    // Request session with hit-test + dom-overlay
+    xrSession = await navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['hit-test', 'local-floor'],
+      optionalFeatures: ['dom-overlay', 'anchors'],
+      domOverlay: { root: document.getElementById('ar-hud').parentElement }
+    });
+
+    // Hide start screen
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('stop-cards').style.display = 'flex';
+
+    // Setup renderer for XR
+    renderer.xr.setReferenceSpaceType('local-floor');
+    await renderer.xr.setSession(xrSession);
+
+    // Setup hit-test source
+    const viewerSpace = await xrSession.requestReferenceSpace('viewer');
+    hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+
+    // Start GPS + compass
+    startGPS();
+    startCompass();
+
+    // Session end handler
+    xrSession.addEventListener('end', () => {
+      xrSession = null;
+      hitTestSource = null;
+      document.getElementById('start-screen').style.display = 'flex';
+      document.getElementById('stop-cards').style.display = 'none';
+      if (gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId);
+    });
+
+    // Start render loop
+    renderer.setAnimationLoop(onXRFrame);
+
+  } catch (err) {
+    showError('AR konnte nicht gestartet werden: ' + err.message);
+  }
+}
+
+// ═══════════════════════════════════════════
+//  RENDER LOOP
+// ═══════════════════════════════════════════
+let lastCompassUpdate = 0;
+
+function onXRFrame(timestamp, frame) {
+  if (!frame) return;
+
+  const session = renderer.xr.getSession();
+  const refSpace = renderer.xr.getReferenceSpace();
+  const pose = frame.getViewerPose(refSpace);
+
+  // Update reticle via hit-test
+  if (hitTestSource && pose) {
+    const results = frame.getHitTestResults(hitTestSource);
+    if (results.length > 0) {
+      const hit = results[0];
+      const hitPose = hit.getPose(refSpace);
+      reticle.visible = true;
+      reticle.matrix.fromArray(hitPose.transform.matrix);
+    } else {
+      reticle.visible = false;
+    }
+  }
+
+  // Align content group with compass north (update every 500ms for smoothness)
+  if (compassHeading !== null && timestamp - lastCompassUpdate > 500) {
+    lastCompassUpdate = timestamp;
+    // Compass heading = degrees from north clockwise
+    // We need to rotate contentGroup so that -Z points north
+    // On Android, deviceorientationabsolute alpha = degrees from north
+    // ContentGroup rotation: Y-axis rotation = -heading (to align scene north with real north)
+    const targetY = -compassHeading * DEG2RAD;
+    // Smooth interpolation
+    const currentY = contentGroup.rotation.y;
+    let delta = targetY - currentY;
+    // Normalize delta to [-PI, PI]
+    while (delta > Math.PI) delta -= 2 * Math.PI;
+    while (delta < -Math.PI) delta += 2 * Math.PI;
+    contentGroup.rotation.y = currentY + delta * 0.1;  // smooth lerp
+  }
+
+  // Animate beacons (gentle bob)
+  const t = timestamp * 0.001;
+  Object.values(stopMeshes).forEach((group, i) => {
+    const beacon = group.getObjectByName('beacon');
+    if (beacon) {
+      beacon.position.y = 15 + Math.sin(t * 1.5 + i) * 0.8;
+    }
+  });
+
+  renderer.render(scene, camera);
+}
+
+// ═══════════════════════════════════════════
+//  ERROR HANDLING
+// ═══════════════════════════════════════════
+function showError(msg) {
+  const overlay = document.getElementById('error-overlay');
+  document.getElementById('error-msg').textContent = msg;
+  overlay.classList.add('visible');
+  document.getElementById('start-btn').disabled = false;
+  document.getElementById('start-status').textContent = '';
+}
+
+// ═══════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════
+initScene();
+buildStopCards();
+
+document.getElementById('start-btn').addEventListener('click', startAR);
+
+// Update stop distances every 2 seconds even before AR starts
+setInterval(() => {
+  if (userLat !== null) updateStopCards();
+}, 2000);
+
+</script>
+</body>
+</html>
