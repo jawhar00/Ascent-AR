@@ -25,6 +25,16 @@
   #start-btn:active { transform:scale(.95); }
   #start-btn:disabled { opacity:.4; cursor:wait; }
   #start-status { margin-top:16px; font-size:12px; opacity:.6; min-height:20px; }
+  #test-btn {
+    margin-top:12px; padding:10px 28px; border:2px solid rgba(78,191,184,.5);
+    border-radius:10px; background:transparent; color:#4EBFB8;
+    font-size:13px; font-weight:600; cursor:pointer;
+  }
+  #test-banner {
+    position:fixed; top:48px; left:50%; transform:translateX(-50%);
+    background:#fbbc04; color:#000; padding:5px 14px; border-radius:8px;
+    font-size:11px; font-weight:700; z-index:20; display:none;
+  }
 
   /* ── AR HUD overlay ── */
   #ar-hud {
@@ -79,8 +89,10 @@
   <h1>🏙 ASCEND AR</h1>
   <p>Erkunde die Energiewende-Maßnahmen in Harthof. Richte dein Handy auf die Umgebung — die 3D-Modelle erscheinen an ihren realen Standorten.</p>
   <button id="start-btn">AR starten</button>
+  <button id="test-btn">🧪 Testmodus (10m vor dir)</button>
   <div id="start-status"></div>
 </div>
+<div id="test-banner">🧪 TESTMODUS — Stop 10m vor dir platziert</div>
 
 <!-- ── AR HUD (dom-overlay) ── -->
 <div id="ar-hud">
@@ -119,7 +131,7 @@ const STOPS = [
   {
     key: 'parklet', label: 'Parklet', icon: '🌿',
     lat: 48.20323, lon: 11.56816, alt: 0,
-    glb: null,
+    glb: null,                               // parklet.glb too large — beacon only
     info: 'Bürger-Parklet mit Kräutergarten'
   },
   {
@@ -143,7 +155,7 @@ const STOPS = [
   {
     key: 'new_buildings', label: 'Neubau KfW-40', icon: '🏠',
     lat: 48.20313, lon: 11.57122, alt: 0,
-    glb: 'new_buildings.glb',
+    glb: null,                               // not yet extracted — beacon only
     info: 'Plusenergie-Quartier'
   }
 ];
@@ -197,6 +209,66 @@ let stopMeshes = {};         // key → THREE.Group
 const loader = new GLTFLoader();
 let gpsOriginSet = false;
 let originLat, originLon;    // GPS at session start
+let testMode = false;
+
+// ═══════════════════════════════════════════
+//  TEST MODE — place ev_carport 10m in front
+// ═══════════════════════════════════════════
+function placeTestStop() {
+  // Clear any existing stops
+  while (contentGroup.children.length) contentGroup.remove(contentGroup.children[0]);
+  stopMeshes = {};
+
+  const testStop = STOPS.find(s => s.key === 'ev_carport');
+
+  // Place 10m in front of camera (in -Z direction = forward in Three.js)
+  const markerGroup = new THREE.Group();
+  markerGroup.position.set(0, 0, -10); // 10m forward, at ground level
+
+  // Beacon
+  const beaconGeo = new THREE.SphereGeometry(0.3, 16, 16);
+  const beaconMat = new THREE.MeshStandardMaterial({
+    color: 0x4EBFB8, emissive: 0x4EBFB8, emissiveIntensity: 0.6,
+    transparent: true, opacity: 0.85
+  });
+  const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+  beacon.position.y = 2;
+  beacon.name = 'beacon';
+  markerGroup.add(beacon);
+
+  // Vertical line
+  const lineGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 2, 0)
+  ]);
+  markerGroup.add(new THREE.Line(lineGeo,
+    new THREE.LineBasicMaterial({ color: 0x4EBFB8, transparent: true, opacity: 0.5 })));
+
+  // Ground ring
+  const ringGeo = new THREE.RingGeometry(0.4, 0.6, 32).rotateX(-Math.PI / 2);
+  markerGroup.add(new THREE.Mesh(ringGeo,
+    new THREE.MeshBasicMaterial({ color: 0x4EBFB8, side: THREE.DoubleSide, transparent: true, opacity: 0.4 })));
+
+  // Load GLB if available
+  if (testStop && testStop.glb) {
+    loader.load(testStop.glb, (gltf) => {
+      const model = gltf.scene;
+      // Scale: GLBs are in meters already, but may be large city-scale
+      // Start at scale 0.01 (1cm per meter) and adjust visually
+      model.scale.setScalar(0.01);
+      model.position.set(0, 0, 0);
+      markerGroup.add(model);
+      console.log('[TEST] GLB loaded, scale=0.01 — adjust if needed');
+    }, undefined, (err) => {
+      console.warn('[TEST] GLB not loaded:', err.message);
+    });
+  }
+
+  contentGroup.add(markerGroup);
+  stopMeshes['test'] = markerGroup;
+
+  document.getElementById('test-banner').style.display = 'block';
+  console.log('[TEST] Stop placed 10m in front at (0, 0, -10)');
+}
 
 // ═══════════════════════════════════════════
 //  INIT THREE.JS
@@ -363,21 +435,21 @@ function placeStops() {
     contentGroup.add(markerGroup);
     stopMeshes[stop.key] = markerGroup;
 
-    // Load GLB model asynchronously
-    loader.load(stop.glb,
-      (gltf) => {
-        const model = gltf.scene;
-        model.position.set(0, 0, 0);
-        // Scale down if model is in real-world meters (adjust as needed)
-        // model.scale.setScalar(0.01);
-        markerGroup.add(model);
-        console.log(`[ASCEND-AR] Loaded: ${stop.key}`);
-      },
-      undefined,
-      (err) => {
-        console.warn(`[ASCEND-AR] GLB not found: ${stop.glb} — beacon only`, err.message);
-      }
-    );
+    // Load GLB model asynchronously (skip if null)
+    if (stop.glb) {
+      loader.load(stop.glb,
+        (gltf) => {
+          const model = gltf.scene;
+          model.position.set(0, 0, 0);
+          markerGroup.add(model);
+          console.log(`[ASCEND-AR] Loaded: ${stop.key}`);
+        },
+        undefined,
+        (err) => {
+          console.warn(`[ASCEND-AR] GLB not found: ${stop.glb} — beacon only`, err.message);
+        }
+      );
+    }
   });
 }
 
@@ -490,9 +562,15 @@ async function startAR() {
     const viewerSpace = await xrSession.requestReferenceSpace('viewer');
     hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
 
-    // Start GPS + compass
-    startGPS();
-    startCompass();
+    // Start GPS + compass (skip in test mode)
+    if (!testMode) {
+      startGPS();
+      startCompass();
+    } else {
+      // Test mode: place stop immediately after session starts
+      setTimeout(placeTestStop, 500);
+      document.getElementById('stop-cards').style.display = 'none';
+    }
 
     // Session end handler
     xrSession.addEventListener('end', () => {
@@ -582,7 +660,15 @@ function showError(msg) {
 initScene();
 buildStopCards();
 
-document.getElementById('start-btn').addEventListener('click', startAR);
+document.getElementById('start-btn').addEventListener('click', () => {
+  testMode = false;
+  startAR();
+});
+
+document.getElementById('test-btn').addEventListener('click', () => {
+  testMode = true;
+  startAR();
+});
 
 // Update stop distances every 2 seconds even before AR starts
 setInterval(() => {
