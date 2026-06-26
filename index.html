@@ -284,16 +284,27 @@ function placeTestStop() {
 
   // Load GLB if available
   if (testStop && testStop.glb) {
-    loader.load(testStop.glb, (gltf) => {
-      const model = gltf.scene;
-      model.scale.setScalar(1.0);
-      model.position.set(0, 0, 0);
-      markerGroup.add(model);
-      markerGroup.remove(cube);
-      console.log('[TEST] loaded');
-    }, undefined, (err) => {
-      cube.material.color.setHex(0xff00ff);
-      console.warn('[TEST] failed:', err.message);
+    // Pre-check: verify file is accessible before loading
+    fetch(testStop.glb)
+    .then(r => {
+      console.log(`[TEST] fetch status: ${r.status} type: ${r.headers.get('content-type')}`);
+      cube.material.color.setHex(0x00ff00); // green = fetch OK
+      // Now load with GLTFLoader
+      loader.load(testStop.glb, (gltf) => {
+        const model = gltf.scene;
+        model.scale.setScalar(1.0);
+        model.position.set(0, 0, 0);
+        markerGroup.add(model);
+        markerGroup.remove(cube);
+        console.log('[TEST] loaded');
+      }, undefined, (err) => {
+        cube.material.color.setHex(0xff00ff);
+        console.warn('[TEST] GLTFLoader failed:', err.message);
+      });
+    })
+    .catch(err => {
+      cube.material.color.setHex(0x0000ff); // blue = fetch failed
+      console.warn('[TEST] fetch failed:', err.message);
     });
   }
 
