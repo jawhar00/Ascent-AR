@@ -293,10 +293,21 @@ function placeTestStop() {
       loader.load(testStop.glb, (gltf) => {
         const model = gltf.scene;
         model.scale.setScalar(1.0);
-        model.position.set(0, 0, 0);
+
+        // Auto-center: compute bounding box AFTER adding to scene
+        // then offset so center sits at origin
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        console.log(`[TEST] box center: ${center.x.toFixed(1)}, ${center.y.toFixed(1)}, ${center.z.toFixed(1)}`);
+        console.log(`[TEST] box size: ${size.x.toFixed(1)} x ${size.y.toFixed(1)} x ${size.z.toFixed(1)}`);
+
+        // Shift model so its center is at (0, 0, 0)
+        model.position.set(-center.x, -center.y + size.y/2, -center.z);
+
         markerGroup.add(model);
         markerGroup.remove(cube);
-        console.log('[TEST] loaded');
+        console.log('[TEST] loaded and centered');
       }, undefined, (err) => {
         cube.material.color.setHex(0xff00ff);
         console.warn('[TEST] GLTFLoader failed:', err.message);
@@ -490,8 +501,10 @@ function placeStops() {
       loader.load(stop.glb,
         (gltf) => {
           const model = gltf.scene;
-          const off = stop.offset || [0,0,0];
-          model.position.set(off[0], off[1], off[2]);
+          const box = new THREE.Box3().setFromObject(model);
+          const center = box.getCenter(new THREE.Vector3());
+          const size = box.getSize(new THREE.Vector3());
+          model.position.set(-center.x, -center.y + size.y/2, -center.z);
           convertToBasic(model);
           markerGroup.add(model);
           console.log(`[ASCEND-AR] Loaded: ${stop.key}`);
