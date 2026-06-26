@@ -131,8 +131,6 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 // ═══════════════════════════════════════════
 //  ASCEND STOP DEFINITIONS
@@ -342,14 +340,12 @@ function initScene() {
   dir2.position.set(-5, 5, -5);
   scene.add(dir2);
 
-  // Environment map — required for PBR textures to show correctly
+  // Simple environment map for PBR materials
   const pmremGenerator = new THREE.PMREMGenerator(renderer);
-  pmremGenerator.compileEquirectangularShader();
-  const neutralEnv = pmremGenerator.fromScene(
-    new THREE.RoomEnvironment(), 0.04
-  ).texture;
-  scene.environment = neutralEnv;
-  scene.background = null; // keep AR transparent
+  const envTexture = pmremGenerator.fromScene(new THREE.Scene()).texture;
+  scene.environment = envTexture;
+  scene.background = null;
+  pmremGenerator.dispose();
 
   // Content group — will be rotated to align with compass north
   contentGroup = new THREE.Group();
