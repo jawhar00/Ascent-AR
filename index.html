@@ -275,47 +275,20 @@ function placeTestStop() {
   markerGroup.add(new THREE.Mesh(ringGeo,
     new THREE.MeshBasicMaterial({ color: 0x4EBFB8, side: THREE.DoubleSide, transparent: true, opacity: 0.4 })));
 
-  // RED TEST CUBE — always visible at marker position to confirm scene works
-  const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
-  const cubeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-  const cube = new THREE.Mesh(cubeGeo, cubeMat);
-  cube.position.set(0, 0.5, 0);
-  markerGroup.add(cube);
-
   // Load GLB if available
   if (testStop && testStop.glb) {
-    // Pre-check: verify file is accessible before loading
-    fetch(testStop.glb)
-    .then(r => {
-      console.log(`[TEST] fetch status: ${r.status} type: ${r.headers.get('content-type')}`);
-      cube.material.color.setHex(0x00ff00); // green = fetch OK
-      // Now load with GLTFLoader
-      loader.load(testStop.glb, (gltf) => {
-        const model = gltf.scene;
-        model.scale.setScalar(1.0);
-
-        // Auto-center: compute bounding box AFTER adding to scene
-        // then offset so center sits at origin
-        const box = new THREE.Box3().setFromObject(model);
-        const center = box.getCenter(new THREE.Vector3());
-        const size = box.getSize(new THREE.Vector3());
-        console.log(`[TEST] box center: ${center.x.toFixed(1)}, ${center.y.toFixed(1)}, ${center.z.toFixed(1)}`);
-        console.log(`[TEST] box size: ${size.x.toFixed(1)} x ${size.y.toFixed(1)} x ${size.z.toFixed(1)}`);
-
-        // Shift model so its center is at (0, 0, 0)
-        model.position.set(-center.x, -center.y + size.y/2, -center.z);
-        convertToBasic(model);
-        markerGroup.add(model);
-        markerGroup.remove(cube);
-        console.log('[TEST] loaded and centered');
-      }, undefined, (err) => {
-        cube.material.color.setHex(0xff00ff);
-        console.warn('[TEST] GLTFLoader failed:', err.message);
-      });
-    })
-    .catch(err => {
-      cube.material.color.setHex(0x0000ff); // blue = fetch failed
-      console.warn('[TEST] fetch failed:', err.message);
+    loader.load(testStop.glb, (gltf) => {
+      const model = gltf.scene;
+      model.scale.setScalar(1.0);
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      model.position.set(-center.x, -center.y + size.y/2, -center.z);
+      convertToBasic(model);
+      markerGroup.add(model);
+      console.log('[TEST] loaded and centered');
+    }, undefined, (err) => {
+      console.warn('[TEST] GLB failed:', err.message);
     });
   }
 
