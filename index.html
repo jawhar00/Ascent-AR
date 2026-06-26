@@ -254,7 +254,7 @@ function placeTestStop() {
       const model = gltf.scene;
       // Scale: GLBs are in meters already, but may be large city-scale
       // Start at scale 0.01 (1cm per meter) and adjust visually
-      model.scale.setScalar(0.01);
+      model.scale.setScalar(0.1);
       model.position.set(0, 0, 0);
       markerGroup.add(model);
       console.log('[TEST] GLB loaded, scale=0.01 — adjust if needed');
