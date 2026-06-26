@@ -35,13 +35,6 @@
     background:#fbbc04; color:#000; padding:5px 14px; border-radius:8px;
     font-size:11px; font-weight:700; z-index:20; display:none;
   }
-  #debug-panel {
-    position:fixed; top:80px; left:8px; right:8px; z-index:30;
-    background:rgba(0,0,0,.85); color:#0f0; font-family:monospace;
-    font-size:9px; padding:8px; border-radius:6px; max-height:40vh;
-    overflow-y:auto; display:none; pointer-events:auto;
-    border:1px solid #0f0;
-  }
 
   /* ── AR HUD overlay ── */
   #ar-hud {
@@ -99,8 +92,7 @@
   <button id="test-btn">🧪 Testmodus (10m vor dir)</button>
   <div id="start-status"></div>
 </div>
-<div id="test-banner">🧪 TESTMODUS — Stop 10m vor dir platziert (tap for debug)</div>
-<div id="debug-panel"></div>
+<div id="test-banner">🧪 TESTMODUS — Stop 10m vor dir platziert</div>
 
 <!-- ── AR HUD (dom-overlay) ── -->
 <div id="ar-hud">
@@ -216,26 +208,8 @@ let gpsWatchId = null;
 let stopMeshes = {};         // key → THREE.Group
 const loader = new GLTFLoader();
 let gpsOriginSet = false;
-let originLat, originLon;    // GPS at session start
+let originLat, originLon;
 let testMode = false;
-
-// On-screen debug logger
-const _debugLines = [];
-function dbg(msg) {
-  console.log(msg);
-  _debugLines.unshift(msg);
-  if (_debugLines.length > 40) _debugLines.pop();
-  const panel = document.getElementById('debug-panel');
-  if (panel && panel.style.display !== 'none') {
-    panel.innerHTML = _debugLines.join('<br>');
-  }
-}
-
-document.getElementById('test-banner').addEventListener('click', () => {
-  const panel = document.getElementById('debug-panel');
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  panel.innerHTML = _debugLines.join('<br>');
-});
 
 // Convert PBR materials to MeshBasicMaterial — keeps textures/colors,
 // no lighting needed, works reliably in WebXR AR
@@ -302,24 +276,21 @@ function placeTestStop() {
       const model = gltf.scene;
       model.scale.setScalar(1.0);
       model.position.set(0, 0, 0);
+      // Blender exports with Z-up, glTF expects Y-up
+      // This corrects the axis so model sits on ground correctly
+      model.rotation.x = -Math.PI / 2;
       convertToBasic(model);
       markerGroup.add(model);
+      console.log('[TEST] parklet loaded');
 
       // Debug: log all materials found
       let matCount = 0;
       model.traverse(child => {
         if (child.isMesh && child.material) {
           matCount++;
-          const m = child.material;
-          dbg(`MAT ${child.name.slice(0,20)}: type=${m.type.replace('Material','')} map=${m.map?'Y':'n'} col=${m.color?m.color.getHexString():'?'} vc=${m.vertexColors}`);
         }
       });
-      dbg(`TOTAL: ${matCount} materials`);
-      const box = new THREE.Box3().setFromObject(model);
-      const size = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
-      dbg(`SIZE: ${size.x.toFixed(1)}x${size.y.toFixed(1)}x${size.z.toFixed(1)}m`);
-      dbg(`CENTER: ${center.x.toFixed(1)},${center.y.toFixed(1)},${center.z.toFixed(1)}`);
+      console.log(`[TEST] parklet: ${matCount} materials`);
 
     }, undefined, (err) => {
       console.warn('[TEST] GLB not loaded:', err.message);
