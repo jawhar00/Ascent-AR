@@ -131,7 +131,7 @@ const STOPS = [
   {
     key: 'parklet', label: 'Parklet', icon: '🌿',
     lat: 48.20323, lon: 11.56816, alt: 0,
-    glb: 'parklet.glb',
+    glb: 'parklet_blender.glb',
     offset: [-7.99, -0.15, 18.51],  // pygltflib measured center
     info: 'Bürger-Parklet mit Kräutergarten'
   },
@@ -219,23 +219,23 @@ let testMode = false;
 // Convert PBR materials to MeshBasicMaterial — keeps textures/colors,
 // no lighting needed, works reliably in WebXR AR
 function convertToBasic(model) {
-  model.traverse(child => {
-    if (!child.isMesh) return;
-    const old = child.material;
-    const mats = Array.isArray(old) ? old : [old];
-    const newMats = mats.map(m => {
-      const basic = new THREE.MeshBasicMaterial({
-        map:            m.map            || null,
-        color:          m.color          || new THREE.Color(0xffffff),
-        vertexColors:   m.vertexColors   || false,
-        transparent:    m.transparent    || false,
-        opacity:        m.opacity        !== undefined ? m.opacity : 1,
-        side:           THREE.DoubleSide,
-      });
-      return basic;
+  try {
+    model.traverse(child => {
+      if (!child.isMesh) return;
+      const old = Array.isArray(child.material) ? child.material : [child.material];
+      const newMats = old.map(m => new THREE.MeshBasicMaterial({
+        map:          m.map   || null,
+        color:        m.color || new THREE.Color(0xffffff),
+        vertexColors: m.vertexColors || false,
+        transparent:  m.transparent  || false,
+        opacity:      m.opacity !== undefined ? m.opacity : 1,
+        side:         THREE.DoubleSide,
+      }));
+      child.material = Array.isArray(child.material) ? newMats : newMats[0];
     });
-    child.material = Array.isArray(old) ? newMats : newMats[0];
-  });
+  } catch(e) {
+    console.warn('[convertToBasic] error:', e.message);
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -287,18 +287,13 @@ function placeTestStop() {
     loader.load(testStop.glb, (gltf) => {
       const model = gltf.scene;
       model.scale.setScalar(1.0);
-      // Zero offset — if GLB loads we'll see it somewhere
       model.position.set(0, 0, 0);
-      convertToBasic(model);
       markerGroup.add(model);
       markerGroup.remove(cube);
-      console.log('[TEST] parklet loaded');
-    }, (progress) => {
-      console.log('[TEST] loading:', Math.round(progress.loaded/progress.total*100) + '%');
-    }, (err) => {
-      console.warn('[TEST] GLB failed:', err.message);
-      // Show error on cube color
-      cube.material.color.setHex(0xff00ff); // purple = load error
+      console.log('[TEST] loaded');
+    }, undefined, (err) => {
+      cube.material.color.setHex(0xff00ff);
+      console.warn('[TEST] failed:', err.message);
     });
   }
 
