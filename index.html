@@ -275,7 +275,9 @@ function placeTestStop() {
     loader.load(testStop.glb, (gltf) => {
       const model = gltf.scene;
       model.scale.setScalar(1.0);
-      model.position.set(0, 0, 0);
+      // Offset to compensate for parklet_blender.glb world position
+      // pygltflib measured center at X=7.99, Y=0.15, Z=-18.51
+      model.position.set(-7.99, -0.15, 18.51);
       convertToBasic(model);
       markerGroup.add(model);
       console.log('[TEST] parklet loaded');
