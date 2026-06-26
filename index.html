@@ -276,9 +276,6 @@ function placeTestStop() {
       const model = gltf.scene;
       model.scale.setScalar(1.0);
       model.position.set(0, 0, 0);
-      // Blender exports with Z-up, glTF expects Y-up
-      // This corrects the axis so model sits on ground correctly
-      model.rotation.x = -Math.PI / 2;
       convertToBasic(model);
       markerGroup.add(model);
       console.log('[TEST] parklet loaded');
