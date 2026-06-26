@@ -287,16 +287,18 @@ function placeTestStop() {
     loader.load(testStop.glb, (gltf) => {
       const model = gltf.scene;
       model.scale.setScalar(1.0);
-      // offset negates the GLB's baked world position so it centers on marker
-      const off = testStop.offset || [0, 0, 0];
-      model.position.set(off[0], off[1], off[2]);
+      // Zero offset — if GLB loads we'll see it somewhere
+      model.position.set(0, 0, 0);
       convertToBasic(model);
       markerGroup.add(model);
-      // Remove red cube once GLB loads
       markerGroup.remove(cube);
-      console.log('[TEST] parklet loaded, cube removed');
-    }, undefined, (err) => {
+      console.log('[TEST] parklet loaded');
+    }, (progress) => {
+      console.log('[TEST] loading:', Math.round(progress.loaded/progress.total*100) + '%');
+    }, (err) => {
       console.warn('[TEST] GLB failed:', err.message);
+      // Show error on cube color
+      cube.material.color.setHex(0xff00ff); // purple = load error
     });
   }
 
