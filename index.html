@@ -232,13 +232,13 @@ function placeTestStop() {
     transparent: true, opacity: 0.85
   });
   const beacon = new THREE.Mesh(beaconGeo, beaconMat);
-  beacon.position.y = 2;
+  beacon.position.y = 3;
   beacon.name = 'beacon';
   markerGroup.add(beacon);
 
   // Vertical line
   const lineGeo = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 2, 0)
+    new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 3, 0)
   ]);
   markerGroup.add(new THREE.Line(lineGeo,
     new THREE.LineBasicMaterial({ color: 0x4EBFB8, transparent: true, opacity: 0.5 })));
@@ -252,12 +252,31 @@ function placeTestStop() {
   if (testStop && testStop.glb) {
     loader.load(testStop.glb, (gltf) => {
       const model = gltf.scene;
-      // Real-world scale: 1 unit = 1 meter
-      // Parklet is ~3-5m wide so it should be clearly visible
       model.scale.setScalar(1.0);
       model.position.set(0, 0, 0);
+
+      // Force visible teal material on every mesh
+      model.traverse(child => {
+        if (child.isMesh) {
+          child.material = new THREE.MeshStandardMaterial({
+            color: 0x4EBFB8,
+            roughness: 0.5,
+            metalness: 0.2,
+            side: THREE.DoubleSide
+          });
+          child.visible = true;
+        }
+      });
+
       markerGroup.add(model);
-      console.log('[TEST] parklet.glb loaded at scale=1.0');
+
+      // Log bounding box so we can debug position
+      const box = new THREE.Box3().setFromObject(model);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      console.log(`[TEST] parklet loaded. Size: ${size.x.toFixed(1)}x${size.y.toFixed(1)}x${size.z.toFixed(1)}m`);
+      console.log(`[TEST] Center: ${center.x.toFixed(1)}, ${center.y.toFixed(1)}, ${center.z.toFixed(1)}`);
+
     }, undefined, (err) => {
       console.warn('[TEST] GLB not loaded:', err.message);
     });
@@ -636,7 +655,7 @@ function onXRFrame(timestamp, frame) {
   Object.values(stopMeshes).forEach((group, i) => {
     const beacon = group.getObjectByName('beacon');
     if (beacon) {
-      const baseY = testMode ? 2 : 15;
+      const baseY = testMode ? 3 : 15;
       beacon.position.y = baseY + Math.sin(t * 1.5 + i) * 0.3;
     }
   });
