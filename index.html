@@ -237,8 +237,30 @@ document.getElementById('test-banner').addEventListener('click', () => {
   panel.innerHTML = _debugLines.join('<br>');
 });
 
+// Convert PBR materials to MeshBasicMaterial — keeps textures/colors,
+// no lighting needed, works reliably in WebXR AR
+function convertToBasic(model) {
+  model.traverse(child => {
+    if (!child.isMesh) return;
+    const old = child.material;
+    const mats = Array.isArray(old) ? old : [old];
+    const newMats = mats.map(m => {
+      const basic = new THREE.MeshBasicMaterial({
+        map:            m.map            || null,
+        color:          m.color          || new THREE.Color(0xffffff),
+        vertexColors:   m.vertexColors   || false,
+        transparent:    m.transparent    || false,
+        opacity:        m.opacity        !== undefined ? m.opacity : 1,
+        side:           THREE.DoubleSide,
+      });
+      return basic;
+    });
+    child.material = Array.isArray(old) ? newMats : newMats[0];
+  });
+}
+
 // ═══════════════════════════════════════════
-//  TEST MODE — place ev_carport 10m in front
+//  TEST MODE — place parklet 10m in front
 // ═══════════════════════════════════════════
 function placeTestStop() {
   // Clear any existing stops
@@ -280,7 +302,7 @@ function placeTestStop() {
       const model = gltf.scene;
       model.scale.setScalar(1.0);
       model.position.set(0, 0, 0);
-
+      convertToBasic(model);
       markerGroup.add(model);
 
       // Debug: log all materials found
@@ -339,13 +361,6 @@ function initScene() {
   const dir2 = new THREE.DirectionalLight(0xffffff, 1.0);
   dir2.position.set(-5, 5, -5);
   scene.add(dir2);
-
-  // Simple environment map for PBR materials
-  const pmremGenerator = new THREE.PMREMGenerator(renderer);
-  const envTexture = pmremGenerator.fromScene(new THREE.Scene()).texture;
-  scene.environment = envTexture;
-  scene.background = null;
-  pmremGenerator.dispose();
 
   // Content group — will be rotated to align with compass north
   contentGroup = new THREE.Group();
@@ -494,6 +509,7 @@ function placeStops() {
         (gltf) => {
           const model = gltf.scene;
           model.position.set(0, 0, 0);
+          convertToBasic(model);
           markerGroup.add(model);
           console.log(`[ASCEND-AR] Loaded: ${stop.key}`);
         },
