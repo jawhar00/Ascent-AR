@@ -292,15 +292,18 @@ function initScene() {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
+  renderer.useLegacyLights = false;
   document.body.appendChild(renderer.domElement);
 
-  // Lighting
-  const hemi = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1.2);
+  // Lighting — boosted for PBR material visibility in AR
+  const hemi = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3.0);
   scene.add(hemi);
-  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+  const dir = new THREE.DirectionalLight(0xffffff, 2.0);
   dir.position.set(5, 10, 7.5);
-  dir.castShadow = true;
   scene.add(dir);
+  const dir2 = new THREE.DirectionalLight(0xffffff, 1.0);
+  dir2.position.set(-5, 5, -5);
+  scene.add(dir2);
 
   // Content group — will be rotated to align with compass north
   contentGroup = new THREE.Group();
