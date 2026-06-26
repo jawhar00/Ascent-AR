@@ -132,30 +132,35 @@ const STOPS = [
     key: 'parklet', label: 'Parklet', icon: '🌿',
     lat: 48.20323, lon: 11.56816, alt: 0,
     glb: 'parklet.glb',
+    offset: [-7.99, -0.15, 18.51],  // pygltflib measured center
     info: 'Bürger-Parklet mit Kräutergarten'
   },
   {
     key: 'ev_carport', label: 'EV-Carport', icon: '🔌',
     lat: 48.20383, lon: 11.56543, alt: 0,
     glb: 'ev_carport.glb',
+    offset: [0, 0, 0],
     info: 'Solarcarport mit E-Ladesäulen'
   },
   {
     key: 'refurbishment', label: 'Sanierung', icon: '🏗',
     lat: 48.20478, lon: 11.56758, alt: 0,
     glb: 'refurbishment.glb',
+    offset: [0, 0, 0],
     info: 'Energetische Gebäudesanierung'
   },
   {
     key: 'mw_building', label: 'Mehrfamilienhaus', icon: '🏢',
     lat: 48.20372, lon: 11.57315, alt: 0,
     glb: 'mw_building.glb',
+    offset: [0, 0, 0],
     info: 'Neubau mit Mieterstrom'
   },
   {
     key: 'new_buildings', label: 'Neubau KfW-40', icon: '🏠',
     lat: 48.20313, lon: 11.57122, alt: 0,
-    glb: null,                               // not yet extracted — beacon only
+    glb: null,
+    offset: [0, 0, 0],
     info: 'Plusenergie-Quartier'
   }
 ];
@@ -270,29 +275,28 @@ function placeTestStop() {
   markerGroup.add(new THREE.Mesh(ringGeo,
     new THREE.MeshBasicMaterial({ color: 0x4EBFB8, side: THREE.DoubleSide, transparent: true, opacity: 0.4 })));
 
+  // RED TEST CUBE — always visible at marker position to confirm scene works
+  const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+  const cubeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  const cube = new THREE.Mesh(cubeGeo, cubeMat);
+  cube.position.set(0, 0.5, 0);
+  markerGroup.add(cube);
+
   // Load GLB if available
   if (testStop && testStop.glb) {
     loader.load(testStop.glb, (gltf) => {
       const model = gltf.scene;
       model.scale.setScalar(1.0);
-      // Offset to compensate for parklet_blender.glb world position
-      // pygltflib measured center at X=7.99, Y=0.15, Z=-18.51
-      model.position.set(-7.99, -0.15, 18.51);
+      // offset negates the GLB's baked world position so it centers on marker
+      const off = testStop.offset || [0, 0, 0];
+      model.position.set(off[0], off[1], off[2]);
       convertToBasic(model);
       markerGroup.add(model);
-      console.log('[TEST] parklet loaded');
-
-      // Debug: log all materials found
-      let matCount = 0;
-      model.traverse(child => {
-        if (child.isMesh && child.material) {
-          matCount++;
-        }
-      });
-      console.log(`[TEST] parklet: ${matCount} materials`);
-
+      // Remove red cube once GLB loads
+      markerGroup.remove(cube);
+      console.log('[TEST] parklet loaded, cube removed');
     }, undefined, (err) => {
-      console.warn('[TEST] GLB not loaded:', err.message);
+      console.warn('[TEST] GLB failed:', err.message);
     });
   }
 
@@ -478,7 +482,8 @@ function placeStops() {
       loader.load(stop.glb,
         (gltf) => {
           const model = gltf.scene;
-          model.position.set(0, 0, 0);
+          const off = stop.offset || [0,0,0];
+          model.position.set(off[0], off[1], off[2]);
           convertToBasic(model);
           markerGroup.add(model);
           console.log(`[ASCEND-AR] Loaded: ${stop.key}`);
