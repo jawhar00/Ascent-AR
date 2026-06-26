@@ -255,19 +255,6 @@ function placeTestStop() {
       model.scale.setScalar(1.0);
       model.position.set(0, 0, 0);
 
-      // Force visible teal material on every mesh
-      model.traverse(child => {
-        if (child.isMesh) {
-          child.material = new THREE.MeshStandardMaterial({
-            color: 0x4EBFB8,
-            roughness: 0.5,
-            metalness: 0.2,
-            side: THREE.DoubleSide
-          });
-          child.visible = true;
-        }
-      });
-
       markerGroup.add(model);
 
       // Log bounding box so we can debug position
@@ -303,6 +290,8 @@ function initScene() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.xr.enabled = true;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
   document.body.appendChild(renderer.domElement);
 
   // Lighting
